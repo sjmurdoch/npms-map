@@ -3,7 +3,7 @@
    overlay, plot positions and live GPS all work offline. OSM base tiles are
    cached opportunistically as they are viewed, and in bulk via "Save offline". */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL = "npms-tl3443-shell-" + VERSION;
 const TILES = "npms-tl3443-tiles-v1";        // tiles survive shell upgrades
 
@@ -33,12 +33,26 @@ const BLANK = Uint8Array.from(atob(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 ), c => c.charCodeAt(0));
 
+// Shell entries are keyed by URL with any query string removed, so that a
+// request for "?v=whatever" both matches and *updates* the same cached entry.
+function shellKey(u) {
+  const x = new URL(u, self.location);
+  x.search = "";
+  x.hash = "";
+  return x.href;
+}
+
 self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(SHELL)
-      .then((c) => c.addAll(SHELL_FILES))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil((async () => {
+    const cache = await caches.open(SHELL);
+    // cache: "reload" bypasses the HTTP cache, which on GitHub Pages would
+    // otherwise hand back the previous deploy's index.html for several minutes.
+    await Promise.all(SHELL_FILES.map(async (u) => {
+      const res = await fetch(new Request(u, { cache: "reload" }));
+      if (res && res.ok) await cache.put(shellKey(u), res);
+    }));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (e) => {
@@ -74,18 +88,19 @@ self.addEventListener("fetch", (e) => {
   if (url.origin === self.location.origin) {
     e.respondWith(
       caches.open(SHELL).then(async (cache) => {
-        const hit = await cache.match(e.request, { ignoreSearch: true });
+        const key = shellKey(e.request.url);
+        const hit = await cache.match(key);
 
         if (hit && IMMUTABLE.test(url.pathname)) return hit;   // cache-first
 
         // stale-while-revalidate: instant offline start, picks up deploys next load
         const net = fetch(e.request).then((res) => {
-          if (res && res.ok) cache.put(e.request, res.clone());
+          if (res && res.ok) cache.put(key, res.clone());
           return res;
         }).catch(() => null);
 
         if (hit) { e.waitUntil(net); return hit; }
-        return (await net) || cache.match("index.html");
+        return (await net) || cache.match(shellKey("index.html"));
       })
     );
   }
