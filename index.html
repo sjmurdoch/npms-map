@@ -36,56 +36,55 @@
   }
   #map { position: absolute; inset: 0; }
 
-  .panel {
+  /* ---- the one panel ---- */
+  #panel {
     position: absolute; z-index: 1000;
+    top: calc(8px + var(--safe-t));
+    left: calc(8px + var(--safe-l));
+    width: min(320px, calc(100vw - 16px - var(--safe-l) - var(--safe-r)));
     background: var(--panel); color: var(--ink);
-    border-radius: 12px; padding: 10px 12px;
+    border-radius: 12px; padding: 8px 10px;
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
     box-shadow: 0 2px 14px rgba(0,0,0,.45);
   }
 
-  /* ---- top controls ---- */
-  #controls {
-    top: calc(8px + var(--safe-t)); left: calc(8px + var(--safe-l));
-    width: 250px; max-width: calc(100vw - 16px - var(--safe-l) - var(--safe-r));
-  }
-  #head { display: flex; align-items: center; gap: 8px; }
-  #head h1 { font-size: 15px; margin: 0; flex: 1; letter-spacing: .01em; }
-  #head h1 small { display: block; color: var(--muted); font-weight: 400; font-size: 10.5px; }
+  /* always-visible live readout */
+  #bar { display: flex; align-items: center; gap: 10px; }
+  #live { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+  #lGrid { font-size: 19px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
+  #lGrid.out { color: var(--warn); }
+  #lGrid.none { color: var(--muted); font-weight: 400; font-size: 15px; }
+  #sub { font-size: 13px; color: var(--muted); white-space: nowrap; margin-top: 1px; }
+  #sub b { color: var(--ink); font-weight: 600; }
   #toggle {
-    flex: 0 0 auto; width: 30px; height: 30px; padding: 0; font-size: 15px; line-height: 1;
+    flex: 0 0 auto; width: 38px; height: 38px; padding: 0;
+    font-size: 17px; line-height: 1; border-radius: 9px;
   }
-  #body.collapsed { display: none; }
+
+  /* everything else */
+  #more { display: none; margin-top: 9px; border-top: 1px solid #333a44; padding-top: 8px; }
+  #more.open { display: block; }
   .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .row label { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
   input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 26px; }
   button {
     font: inherit; font-size: 13px; color: var(--ink);
     background: #2c3138; border: 1px solid #3c434c; border-radius: 8px;
-    padding: 9px 8px; cursor: pointer; flex: 1; min-height: 40px;
+    padding: 9px 8px; cursor: pointer; flex: 1; min-height: 42px;
   }
   button:active { background: #3a424c; }
   button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #06263f; font-weight: 600; }
   button:disabled { opacity: .45; }
-
-  /* ---- readout ---- */
-  #readout {
-    bottom: calc(8px + var(--safe-b)); left: calc(8px + var(--safe-l));
-    width: 250px; max-width: calc(100vw - 16px - var(--safe-l) - var(--safe-r));
-    font-variant-numeric: tabular-nums;
-  }
-  .k { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
-  .v { font-size: 16px; margin: 1px 0 7px; }
-  .v.small { font-size: 13.5px; }
-  .v:last-child { margin-bottom: 0; }
-  .bad { color: var(--warn); }
-  .good { color: var(--ok); }
+  #near { font-size: 13px; }
+  #near span { color: var(--muted); }
   #status { font-size: 11px; color: var(--muted); margin-top: 8px; }
-  #bar { height: 3px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 5px; display: none; }
-  #bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #prog { height: 3px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 5px; display: none; }
+  #prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
   #credits { margin-top: 8px; font-size: 10.5px; color: var(--muted); }
   #credits summary { cursor: pointer; color: var(--accent); }
   #credits p { margin: 6px 0 0; line-height: 1.45; }
+  .bad { color: var(--warn); }
+  .good { color: var(--ok); }
 
   /* ---- GPS marker ---- */
   .gps-wrap { position: relative; width: 0; height: 0; }
@@ -102,32 +101,28 @@
   .leaflet-container { background: #1a1c20; font-family: inherit; }
   .leaflet-control-zoom { margin-top: calc(8px + var(--safe-t)) !important;
                           margin-right: calc(8px + var(--safe-r)) !important; }
-  /* OSM attribution must stay visible: keep it clear of the readout panel */
+  /* OSM attribution must stay visible */
   .leaflet-control-attribution {
     font-size: 10px;
     margin-bottom: calc(4px + var(--safe-b)) !important;
     margin-right: calc(4px + var(--safe-r)) !important;
-  }
-
-  @media (max-width: 620px) {
-    #controls { width: calc(100vw - 16px - var(--safe-l) - var(--safe-r)); }
-    #readout  { width: calc(100vw - 16px - var(--safe-l) - var(--safe-r)); }
-    #readout { display: flex; flex-wrap: wrap; gap: 0 16px;
-               bottom: calc(24px + var(--safe-b)); }
-    #readout > div { flex: 1 1 auto; }
-    #readout > #status, #readout > #bar { flex: 1 0 100%; }
   }
 </style>
 </head>
 <body>
 <div id="map"></div>
 
-<div id="controls" class="panel">
-  <div id="head">
-    <h1>NPMS TL3443<small>OS monad E534000–535000 · N243000–244000</small></h1>
-    <button id="toggle" aria-label="Collapse controls" aria-expanded="true">–</button>
+<div id="panel">
+  <div id="bar">
+    <div id="live">
+      <div id="lGrid" class="none">— no GPS fix —</div>
+      <div id="sub">Tap ▾ then Locate</div>
+    </div>
+    <button id="toggle" aria-label="Show controls" aria-expanded="false">▾</button>
   </div>
-  <div id="body">
+
+  <div id="more">
+    <div id="near"><span>Nearest plot</span> —</div>
     <div class="row">
       <label for="op">Map</label>
       <input type="range" id="op" min="0" max="100" value="85">
@@ -143,7 +138,7 @@
       <button id="btnOffline">Save offline</button>
     </div>
     <div id="status">Checking offline cache…</div>
-    <div id="bar"><i></i></div>
+    <div id="prog"><i></i></div>
     <details id="credits">
       <summary>Sources &amp; licence</summary>
       <p>Square sheet from the <b>National Plant Monitoring Scheme</b> (BSBI, CEH, JNCC,
@@ -157,21 +152,6 @@
          Georeferenced to OSGB36 / British National Grid (EPSG:27700); positions
          transformed to WGS84 with ~1 m accuracy.</p>
     </details>
-  </div>
-</div>
-
-<div id="readout" class="panel">
-  <div>
-    <div class="k">Position</div>
-    <div class="v" id="rGrid">— waiting for GPS —</div>
-  </div>
-  <div>
-    <div class="k">Accuracy / heading</div>
-    <div class="v small" id="rAcc">—</div>
-  </div>
-  <div>
-    <div class="k">Nearest plot</div>
-    <div class="v small" id="rNear">—</div>
   </div>
 </div>
 

@@ -99,17 +99,24 @@
   op.addEventListener("input", syncOpacity);
   syncOpacity();                       // browsers restore slider state on reload
 
-  $("toggle").addEventListener("click", function () {
-    var b = $("body"), hidden = b.classList.toggle("collapsed");
-    this.textContent = hidden ? "+" : "–";
-    this.setAttribute("aria-expanded", String(!hidden));
-  });
+  var moreEl = $("more"), toggleEl = $("toggle");
+  function setOpen(open) {
+    moreEl.classList.toggle("open", open);
+    toggleEl.textContent = open ? "\u25b4" : "\u25be";
+    toggleEl.setAttribute("aria-expanded", String(open));
+    toggleEl.setAttribute("aria-label", open ? "Hide controls" : "Show controls");
+    try { localStorage.setItem("tl3443.open", open ? "1" : "0"); } catch (e) {}
+  }
+  toggleEl.addEventListener("click", function () { setOpen(!moreEl.classList.contains("open")); });
+  var wasOpen = "1";
+  try { wasOpen = localStorage.getItem("tl3443.open") || "1"; } catch (e) {}
+  setOpen(wasOpen === "1");
   $("btnFit").addEventListener("click", fitSquare);
 
   // ------------------------------------------------------------------- GPS
   var gpsMarker = null, accCircle = null, watchId = null;
   var following = false, heading = null, headingSrc = "";
-  var rGrid = $("rGrid"), rAcc = $("rAcc"), rNear = $("rNear");
+  var lGrid = $("lGrid"), subEl = $("sub"), nearEl = $("near");
   var btnLocate = $("btnLocate"), btnFollow = $("btnFollow"), btnCompass = $("btnCompass");
 
   var gpsIcon = L.divIcon({
@@ -157,14 +164,15 @@
     var b = llToBng(c.latitude, c.longitude);
     var s = GEO.sq_bng;
     var inSq = b.e >= s.e0 && b.e <= s.e1 && b.n >= s.n0 && b.n <= s.n1;
-    rGrid.innerHTML = gridRef(b.e, b.n, 8) +
-      '<div class="k" style="margin-top:2px">' +
-      (inSq ? '<span class="good">inside TL3443</span>' : '<span class="bad">outside TL3443</span>') +
-      "</div>";
 
-    rAcc.textContent = "±" + Math.round(c.accuracy) + " m" +
-      (heading == null ? " · no heading"
-        : " · " + Math.round(heading) + "° " + compassPoint(heading) + " (" + headingSrc + ")");
+    // Collapsed view shows only what matters in the field:
+    // 10-figure (1 m) grid reference, heading, and GPS accuracy.
+    lGrid.textContent = gridRef(b.e, b.n, 10);
+    lGrid.className = inSq ? "" : "out";
+    subEl.innerHTML =
+      (heading == null ? "<b>—</b>° " : "<b>" + Math.round(heading) + "</b>° " + compassPoint(heading)) +
+      " · <b>±" + Math.round(c.accuracy) + "</b> m" +
+      (inSq ? "" : ' · <span class="bad">outside square</span>');
 
     var best = null;
     GEO.plots.forEach(function (p) {
@@ -173,25 +181,28 @@
     });
     if (best) {
       var brg = (Math.atan2(best.p.e - b.e, best.p.n_ - b.n) * 180 / Math.PI + 360) % 360;
-      rNear.textContent = "Plot " + best.p.n + " · " + Math.round(best.d) + " m · " +
-                          Math.round(brg) + "° " + compassPoint(brg);
+      nearEl.innerHTML = "<span>Nearest plot</span> <b>" + best.p.n + "</b> · " +
+        Math.round(best.d) + " m · " + Math.round(brg) + "° " + compassPoint(brg);
     }
   }
 
   function onPosError(err) {
-    rGrid.innerHTML = '<span class="bad">GPS: ' + err.message + "</span>";
+    lGrid.className = "none"; lGrid.textContent = "— GPS unavailable —";
+    subEl.textContent = err.message;
     stopLocate();
   }
 
   function startLocate() {
-    if (!navigator.geolocation) { rGrid.innerHTML = '<span class="bad">No geolocation</span>'; return; }
-    if (!window.isSecureContext) {
-      rGrid.innerHTML = '<span class="bad">Needs https:// or localhost</span>'; return;
+    if (!navigator.geolocation || !window.isSecureContext) {
+      lGrid.className = "none"; lGrid.textContent = "— GPS unavailable —";
+      subEl.textContent = "Needs https:// or localhost";
+      return;
     }
     watchId = navigator.geolocation.watchPosition(onPosition, onPosError,
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
     btnLocate.setAttribute("aria-pressed", "true");
     btnLocate.textContent = "Stop";
+    subEl.textContent = "Acquiring fix\u2026";
     btnFollow.disabled = false;
     following = true; btnFollow.setAttribute("aria-pressed", "true");
     requestWakeLock();
@@ -263,7 +274,7 @@
   });
 
   // ---------------------------------------------------------------- offline
-  var statusEl = $("status"), barEl = $("bar"), barFill = barEl.firstElementChild;
+  var statusEl = $("status"), barEl = $("prog"), barFill = barEl.firstElementChild;
   var btnOffline = $("btnOffline");
 
   function tileUrls() {

@@ -3,7 +3,7 @@
    overlay, plot positions and live GPS all work offline. OSM base tiles are
    cached opportunistically as they are viewed, and in bulk via "Save offline". */
 
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL = "npms-tl3443-shell-" + VERSION;
 const TILES = "npms-tl3443-tiles-v1";        // tiles survive shell upgrades
 
