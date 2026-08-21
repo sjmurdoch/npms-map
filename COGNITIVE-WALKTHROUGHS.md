@@ -202,8 +202,9 @@ Issues found:
 
 ### Task A — the plot list, revisited
 
-Two more, raised by the user while this pass was running:
+Raised by the user while this pass was running:
 
+- **C9 — a plot outline could not be got rid of.** Once the map was zoomed in past 17 every one of the twenty-four plots drew its 5 × 5 m outline, whether or not the surveyor had chosen it. So the square filled with outlines for plots nobody intended to survey, and unchoosing a plot — or never choosing it — did nothing to clear its outline. There was no control anywhere that removed one. (Q2, Q4)
 - **C7 — zoomed out, the plots became an unreadable brick.** Every plot carried its number at every zoom. Two steps out from the fitted view the rows were 14 px apart against a 16 px label, so twenty-four numbers overlapped into a solid block that hid the lattice underneath and the chosen plots within it. (Q4)
 - **C8 — a chosen plot could not obviously be unchosen.** It *could* — the primary button is a toggle — but once pressed it reads *"✓ Chosen for survey"*, which is a statement of status, not an offer to undo. Nothing on screen said pressing it again would take the plot back off the list, so the choice looked permanent. A function that exists but that nobody can find fails question 3 exactly as if it were missing. (Q2, Q3)
 
@@ -212,7 +213,7 @@ Two more, raised by the user while this pass was running:
 - **Compass**: granting it and feeding an absolute orientation of alpha 270 produced a heading of 90° E in the readout, rotated the walk-to arrow to −51° for a plot bearing 39° (correctly pointing left of straight ahead), switched the guidance from *"map is north-up"* to *"follow the arrow"*, and turned on the heading cone. **Use heading** stamped 90° into the plot's bearing and persisted it.
 - **Locate → Stop → Locate** restarts cleanly and picks the target guidance back up.
 - **Save offline** and a full offline reload, again, from a clean cache.
-- Plot outlines appear only from zoom 17 and disappear below it; chosen-plot markers stay put either way.
+- Plot outlines appear only from zoom 17 and disappear below it; chosen-plot markers stay put either way. After the C9 fix they also come and go with the plot's own state.
 - The plot list holds its scroll position while distances update, and the export still copies.
 
 ### Changes made
@@ -225,10 +226,13 @@ Two more, raised by the user while this pass was running:
 - Plot markers now follow the zoom: numbered dots while the numbers fit, plain dots once they would collide, and nothing below the point where the whole lattice is smaller than the markers drawn on it — the square outline carries that scale on its own. Chosen and target plots keep their colours at every level, so the plan stays readable zoomed out. (C7)
 - A chosen plot's sheet carries an explicit **"Remove plot n from my list"** action, shown only when there is something to remove. The primary button still toggles both ways for anyone who expects that. (C8)
 - Fitting and centring now ask whether there is room beside the panel. Held sideways they use it — the whole square sits clear to the right of the panel with every plot on screen — and held upright they behave as before. (C6)
+- An outline is drawn only for a plot the surveyor is working with: one that is chosen, one being walked to, or the one whose sheet is open at that moment. Unchoosing a plot takes its outline away, and a plot that was only looked at leaves nothing behind. (C9)
 
-### Defect found while testing the changes
+### Defects found while testing the changes
 
 - The arrival guard was applied to a line that did not quite match, so the *message* about a rough fix went in while the *check* it depended on did not. The result was `ReferenceError: usable is not defined` nine times over and a walk-to row frozen on a stale distance — a worse failure than the one being fixed. It only surfaced because the fix was re-tested rather than assumed; a passing syntax check said nothing about it.
+- Fixing C7 with a fixed zoom threshold was wrong. The fitted view sits at a different zoom on every screen and moves with the height of the panel, so on a phone with the panel expanded the opening view landed below the threshold and **every plot number disappeared** — while the hint underneath still read *"Tap a numbered plot on the map to choose it"*. The rule now measures how far apart the plots actually land on screen and shows the numbers when there is room for them, which is what the threshold was standing in for.
+- Guarding the marker styling with `map.hasLayer` was not enough. Leaflet queues layers added before the map has a view: `hasLayer` reports them immediately, but they have no projected point until the map loads, and the map's first `zoomend` fires ahead of that. Styling one in that window threw inside Leaflet and left the map with no plots at all. The guard now waits for the map to be ready.
 
 ### Still open
 

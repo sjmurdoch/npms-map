@@ -13,8 +13,12 @@
 
   var PLOT_GOAL = 5;              // plots the NPMS asks for in a square
   var FOOT_ZOOM = 17;             // below this the plot outline is too small to read
-  var LABEL_ZOOM = 15;            // below this the numbers collide into a brick
-  var DOT_ZOOM = 12.5;            // below this the lattice is smaller than the dots
+  // Detail follows how far apart the plots actually land on screen, not a guessed
+  // zoom: the fitted view sits at a different zoom on every phone and depends on
+  // how tall the panel is, and at 15 the numbers were vanishing from the opening
+  // view while the hint still said to tap one.
+  var LABEL_GAP = 34;             // px between plots needed to fit a number label
+  var DOT_GAP = 9;                // below this the dots themselves merge
   var POOR_FIX = 15;              // metres: past this a fix cannot place a 5 m plot
   var SQUARE_M = 5;               // NPMS square plot: 5 x 5 m
   var LINEAR_M = [25, 1];         // NPMS linear plot: 25 x 1 m
@@ -132,6 +136,12 @@
   var map = L.map("map", { zoomControl: true, maxZoom: 20, zoomSnap: 0.5, tap: false });
   map.zoomControl.setPosition("topright");
 
+  // Layers added before the map has a view are queued: hasLayer already reports
+  // them, but they have no projected point until the map loads, and the first
+  // zoomend fires ahead of that. Styling one in between throws inside Leaflet.
+  var mapReady = false;
+  map.whenReady(function () { mapReady = true; });
+
   L.tileLayer(TILE_URL, {
     maxZoom: 20, maxNativeZoom: 19, crossOrigin: true,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -196,7 +206,8 @@
     }).addTo(map);
     label.on("click", open);
     var foot = L.polygon(footCorners(p), {
-      color: "#000", weight: 1.5, fillOpacity: .12, interactive: false
+      className: "plot-foot", color: "#000", weight: 1.5,
+      fillOpacity: .12, interactive: false
     });
     plotLayers[p.n] = { p: p, hit: hit, marker: marker, label: label, foot: foot };
   });
@@ -210,13 +221,17 @@
     l.hit.setLatLng(ll);
     l.marker.setLatLng(ll);
     l.label.setLatLng(ll);
-    l.hit.setRadius(full ? 22 : 10);
-    l.marker.setRadius(full ? 8 : 4);
-    l.marker.setStyle({
-      fillColor: chosen ? "#5fd18b" : "#fff",
-      color: target ? "#ff8c00" : "#000",
-      weight: target ? (full ? 4 : 3) : (full ? 2 : 1.5)
-    });
+    // Styling a circle that is not attached and projected throws inside Leaflet:
+    // it has no point to recompute its bounds from.
+    if (mapReady && map.hasLayer(l.marker)) {
+      l.hit.setRadius(full ? 22 : 10);
+      l.marker.setRadius(full ? 8 : 4);
+      l.marker.setStyle({
+        fillColor: chosen ? "#5fd18b" : "#fff",
+        color: target ? "#ff8c00" : "#000",
+        weight: target ? (full ? 4 : 3) : (full ? 2 : 1.5)
+      });
+    }
     var el = l.label.getElement();
     if (el) {          // toggle only: Leaflet's own classes position the label
       el.classList.toggle("chosen", chosen && !target);
@@ -226,13 +241,30 @@
     l.foot.setStyle({ color: target ? "#ff8c00" : chosen ? "#1d7a49" : "#000",
                       weight: target || chosen ? 2 : 1.5,
                       fillColor: chosen ? "#5fd18b" : "#fff" });
+
+    // An outline belongs to a plot the surveyor is actually working with. Drawn
+    // for all twenty-four it is clutter that unchoosing the plot cannot clear.
+    var open = sheetView && sheetView.kind === "plot" && sheetView.n === n;
+    var showFoot = map.getZoom() >= FOOT_ZOOM && (chosen || target || open);
+    if (showFoot !== footGroup.hasLayer(l.foot)) {
+      showFoot ? footGroup.addLayer(l.foot) : footGroup.removeLayer(l.foot);
+    }
   }
 
   // Zoomed out, twenty-four numbered labels overlap into an unreadable brick, so
   // the plots drop to plain dots and then out altogether, leaving the square.
+  // Screen distance between neighbouring lattice points, i.e. how much room a
+  // plot has to itself.
+  function latticeGap() {
+    var p = GEO.plots[0];
+    var a = map.latLngToContainerPoint(bngToLL(p.e, p.n_));
+    var b = map.latLngToContainerPoint(bngToLL(p.e, p.n_ + 166.667));
+    return Math.abs(a.y - b.y);
+  }
+
   function syncDetail() {
-    var z = map.getZoom();
-    var want = z >= LABEL_ZOOM ? "full" : z >= DOT_ZOOM ? "dots" : "none";
+    var gap = latticeGap();
+    var want = gap >= LABEL_GAP ? "full" : gap >= DOT_GAP ? "dots" : "none";
     if (want === detail) return;
     detail = want;
     GEO.plots.forEach(function (p) {
@@ -245,21 +277,15 @@
         showDot ? l.marker.addTo(map) : map.removeLayer(l.marker);
         showDot ? l.hit.addTo(map) : map.removeLayer(l.hit);
       }
-      refreshPlot(p.n);
     });
   }
 
-  function syncFootprints() {
-    var show = map.getZoom() >= FOOT_ZOOM;
-    GEO.plots.forEach(function (p) {
-      var l = plotLayers[p.n];
-      if (show && !footGroup.hasLayer(l.foot)) footGroup.addLayer(l.foot);
-      if (!show && footGroup.hasLayer(l.foot)) footGroup.removeLayer(l.foot);
-    });
+  function refreshAllPlots() {
+    GEO.plots.forEach(function (p) { refreshPlot(p.n); });
   }
   map.on("zoomend", function () {
     syncDetail();
-    syncFootprints();
+    refreshAllPlots();
     // Zooming keeps the map centre, which sits behind the sheet: hold the plot
     // being looked at in the strip of map that is still visible.
     if (sheetView && sheetView.kind === "plot") reveal(sheetView.n);
@@ -603,16 +629,19 @@
   var sheetView = null;
 
   function closeSheet() {
+    var was = sheetView && sheetView.kind === "plot" ? sheetView.n : null;
     sheetView = null;
     sheet.classList.remove("open");
     document.body.classList.remove("sheeting");
     toggleEl.hidden = false;
     map.removeLayer(halo);
+    if (was) refreshPlot(was);          // its outline was on loan while open
   }
   sheetClose.addEventListener("click", closeSheet);
   sheetBack.addEventListener("click", function () { showPlots(); });
 
   function openSheet(view) {
+    var was = sheetView && sheetView.kind === "plot" ? sheetView.n : null;
     sheetView = view;
     sheet.classList.add("open");
     document.body.classList.add("sheeting");
@@ -620,7 +649,9 @@
     sheetBack.hidden = !view.back;
     renderSheet();
     sheetBody.scrollTop = 0;
-    if (view.kind === "plot") reveal(view.n, true); else map.removeLayer(halo);
+    if (was && was !== view.n) refreshPlot(was);
+    if (view.kind === "plot") { refreshPlot(view.n); reveal(view.n, true); }
+    else map.removeLayer(halo);
   }
 
   // The panel covers the top of the map and a sheet covers the bottom, so
@@ -823,8 +854,7 @@
   btnPlots.addEventListener("click", showPlots);
 
   syncDetail();
-  GEO.plots.forEach(function (p) { refreshPlot(p.n); });
-  syncFootprints();
+  refreshAllPlots();
   syncPanel();
   syncNav();
 
