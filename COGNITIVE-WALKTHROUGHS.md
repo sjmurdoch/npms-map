@@ -172,3 +172,66 @@ Issues found:
 
 - Task C, species recording, remains untouched.
 - Following yourself while walking to a target still centres on you, so a distant target can be off screen. The arrow and distance carry the guidance, which seems enough on foot, but a "show both" framing is worth trying if it does not.
+
+---
+
+## 3. The same surveyor, checking the machinery underneath
+
+*Run 21 August 2026 against commit a933f5b, driving the parts the first two passes had not exercised: the compass, the Locate/Stop cycle, a restored session, a bad GPS fix, and the phone held sideways.*
+
+The first pass asked whether the tasks were possible, the second whether they were smooth. This one asks whether the app ever tells the surveyor something untrue — because in the field there is nothing to check it against, and a plot marked out in the wrong place stays wrong for years.
+
+### Task B — the guidance you are trusting
+
+| Step | Q1 goal | Q2 action visible | Q3 action associated | Q4 progress visible | Verdict |
+|---|---|---|---|---|---|
+| Pick the app up again with a plot already targeted | yes | yes | **no** | **no** | **fail** |
+| Walk in with a poor fix under tree cover | yes | yes | yes | **no** | **fail** |
+| Stop GPS to save battery, walk on, glance down | yes | yes | yes | **no** | **fail** |
+| Record where the plot was actually marked | yes | yes | **no** | yes | **fail** |
+| Steer by the compass | yes | yes | yes | yes | **pass** |
+
+Issues found:
+
+- **C1 — a rough fix announced arrival anywhere.** Arrival was "within the greater of 4 m and the GPS accuracy", so a ±55 m fix declared *"At plot 8 · mark the plot out from here"* while the surveyor stood 50 m away in the next field. Sharpening the fix then flipped it back to *"50 m to plot 8"*. This is the one failure in three walkthroughs that corrupts data rather than wasting time: a 5 m plot pegged out on the strength of it is in the wrong place permanently. (Q4)
+- **C2 — Stop froze the display and said nothing.** Stopping GPS left the grid reference, the accuracy, the blue dot, its accuracy circle and the walk-to distance exactly as they were. Walk 200 m with GPS off, glance down, and the phone still reads *"201 m to plot 8"* over a blue dot that has not moved. Nothing marked any of it as stale. (Q4)
+- **C3 — a restored session claimed to be looking for you.** Opening the app with a target saved from last time showed *"walking to plot 8 · finding you…"* while GPS was off and nothing was looking, directly above a readout correctly saying *"Tap Locate to start GPS"*. The app contradicted itself in two adjacent lines. (Q3, Q4)
+- **C4 — the position being written down did not say how good it was.** *"Move plot to where I am standing"* recorded the current fix as the plot's real position with no indication of whether that fix was worth ±5 m or ±55 m. (Q3)
+- **C5 — the phone held sideways was unusable.** On a 844 × 390 landscape screen the expanded panel was 399 px tall — taller than the screen — and did not scroll, so Save offline, the cache status and the credits were simply unreachable. The square was fitted into the strip below a panel that overflowed past it, putting plots off screen, and opening a plot sheet left a 21 px sliver of visible map. (Q2)
+- **C6 — the fit ignored the room beside the panel.** Both fitting the square and centring on a point assumed the panel covers the top of the map. Held sideways the panel is a narrow column with two thirds of the map free to its right, and none of that space was used.
+
+### Task A — the plot list, revisited
+
+Two more, raised by the user while this pass was running:
+
+- **C7 — zoomed out, the plots became an unreadable brick.** Every plot carried its number at every zoom. Two steps out from the fitted view the rows were 14 px apart against a 16 px label, so twenty-four numbers overlapped into a solid block that hid the lattice underneath and the chosen plots within it. (Q4)
+- **C8 — a chosen plot could not obviously be unchosen.** It *could* — the primary button is a toggle — but once pressed it reads *"✓ Chosen for survey"*, which is a statement of status, not an offer to undo. Nothing on screen said pressing it again would take the plot back off the list, so the choice looked permanent. A function that exists but that nobody can find fails question 3 exactly as if it were missing. (Q2, Q3)
+
+### Checked and working
+
+- **Compass**: granting it and feeding an absolute orientation of alpha 270 produced a heading of 90° E in the readout, rotated the walk-to arrow to −51° for a plot bearing 39° (correctly pointing left of straight ahead), switched the guidance from *"map is north-up"* to *"follow the arrow"*, and turned on the heading cone. **Use heading** stamped 90° into the plot's bearing and persisted it.
+- **Locate → Stop → Locate** restarts cleanly and picks the target guidance back up.
+- **Save offline** and a full offline reload, again, from a clean cache.
+- Plot outlines appear only from zoom 17 and disappear below it; chosen-plot markers stay put either way.
+- The plot list holds its scroll position while distances update, and the export still copies.
+
+### Changes made
+
+- Arrival now requires a fix good enough to place a 5 m plot: better than ±15 m **and** within the greater of 4 m and the accuracy. A rougher fix reports the true distance and says *"±55 m, too rough to place a plot"* instead of claiming arrival. (C1)
+- Stopping GPS removes the position marker and accuracy circle, blanks the grid reference back to *"— no GPS fix —"*, hides the nearest-plot line, and the walk-to row says *"GPS off"*. Nothing is left looking live. (C2, C3)
+- The walk-to row distinguishes *"GPS off"* from *"finding you…"*, so it never claims to be searching when it is not. (C3)
+- The mark button carries the accuracy of the fix it would record: *"Move plot to where I am standing (±5 m)"*. (C4)
+- The panel is capped to the screen and its lower section scrolls, so no control can be pushed out of reach on any screen. (C5)
+- Plot markers now follow the zoom: numbered dots while the numbers fit, plain dots once they would collide, and nothing below the point where the whole lattice is smaller than the markers drawn on it — the square outline carries that scale on its own. Chosen and target plots keep their colours at every level, so the plan stays readable zoomed out. (C7)
+- A chosen plot's sheet carries an explicit **"Remove plot n from my list"** action, shown only when there is something to remove. The primary button still toggles both ways for anyone who expects that. (C8)
+- Fitting and centring now ask whether there is room beside the panel. Held sideways they use it — the whole square sits clear to the right of the panel with every plot on screen — and held upright they behave as before. (C6)
+
+### Defect found while testing the changes
+
+- The arrival guard was applied to a line that did not quite match, so the *message* about a rough fix went in while the *check* it depended on did not. The result was `ReferenceError: usable is not defined` nine times over and a walk-to row frozen on a stale distance — a worse failure than the one being fixed. It only surfaced because the fix was re-tested rather than assumed; a passing syntax check said nothing about it.
+
+### Still open
+
+- Task C, species recording, remains untouched; the extraction is parked in `archive/species-extraction.tar.gz`.
+- On a 375 × 667 phone with the panel expanded, the square is squeezed into about 160 px and the plot rows sit 40 px apart. Everything is reachable and tapping the numbers still works, but choosing plots is easier through the Plots list than off the map at that size.
+- Following yourself while walking to a target still centres on you, so a distant target can be off screen.

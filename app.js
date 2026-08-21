@@ -13,6 +13,9 @@
 
   var PLOT_GOAL = 5;              // plots the NPMS asks for in a square
   var FOOT_ZOOM = 17;             // below this the plot outline is too small to read
+  var LABEL_ZOOM = 15;            // below this the numbers collide into a brick
+  var DOT_ZOOM = 12.5;            // below this the lattice is smaller than the dots
+  var POOR_FIX = 15;              // metres: past this a fix cannot place a 5 m plot
   var SQUARE_M = 5;               // NPMS square plot: 5 x 5 m
   var LINEAR_M = [25, 1];         // NPMS linear plot: 25 x 1 m
 
@@ -156,6 +159,9 @@
   var plotLayers = {};
   var halo = L.circleMarker([0, 0], { radius: 17, color: "#4da3ff", weight: 3,
                                       fill: false, interactive: false });
+  // "full" numbered plots, "dots" plain markers once the numbers would collide,
+  // "none" once the whole lattice is smaller than the markers drawn on it.
+  var detail = "full";
 
   // Corners of a plot's ground footprint, in the order they would be walked.
   function footCorners(p) {
@@ -199,14 +205,17 @@
     var l = plotLayers[n];
     if (!l) return;
     var chosen = isChosen(n), target = survey.target === n;
+    var full = detail === "full";
     var pos = plotPos(l.p), ll = bngToLL(pos.e, pos.n);
     l.hit.setLatLng(ll);
     l.marker.setLatLng(ll);
     l.label.setLatLng(ll);
+    l.hit.setRadius(full ? 22 : 10);
+    l.marker.setRadius(full ? 8 : 4);
     l.marker.setStyle({
       fillColor: chosen ? "#5fd18b" : "#fff",
       color: target ? "#ff8c00" : "#000",
-      weight: target ? 4 : 2
+      weight: target ? (full ? 4 : 3) : (full ? 2 : 1.5)
     });
     var el = l.label.getElement();
     if (el) {          // toggle only: Leaflet's own classes position the label
@@ -219,6 +228,27 @@
                       fillColor: chosen ? "#5fd18b" : "#fff" });
   }
 
+  // Zoomed out, twenty-four numbered labels overlap into an unreadable brick, so
+  // the plots drop to plain dots and then out altogether, leaving the square.
+  function syncDetail() {
+    var z = map.getZoom();
+    var want = z >= LABEL_ZOOM ? "full" : z >= DOT_ZOOM ? "dots" : "none";
+    if (want === detail) return;
+    detail = want;
+    GEO.plots.forEach(function (p) {
+      var l = plotLayers[p.n];
+      var showLabel = detail === "full", showDot = detail !== "none";
+      if (showLabel !== map.hasLayer(l.label)) {
+        showLabel ? l.label.addTo(map) : map.removeLayer(l.label);
+      }
+      if (showDot !== map.hasLayer(l.marker)) {
+        showDot ? l.marker.addTo(map) : map.removeLayer(l.marker);
+        showDot ? l.hit.addTo(map) : map.removeLayer(l.hit);
+      }
+      refreshPlot(p.n);
+    });
+  }
+
   function syncFootprints() {
     var show = map.getZoom() >= FOOT_ZOOM;
     GEO.plots.forEach(function (p) {
@@ -228,6 +258,7 @@
     });
   }
   map.on("zoomend", function () {
+    syncDetail();
     syncFootprints();
     // Zooming keeps the map centre, which sits behind the sheet: hold the plot
     // being looked at in the strip of map that is still visible.
@@ -235,12 +266,22 @@
   });
 
   var squareBounds = L.latLngBounds([sq.sw, sq.nw, sq.ne, sq.se]);
-  // The panel sits over the top-left of the map, so fit the square into what is
-  // left: on a phone it otherwise hides the northern half of the plots.
+
+  // The panel covers the top-left of the map. Held upright there is no room
+  // beside it, so the map has to start below it; held sideways the panel is a
+  // column and the map should start to its right instead of being squeezed
+  // into the strip underneath.
+  function panelClear() {
+    var panel = $("panel").getBoundingClientRect(), size = map.getSize();
+    return (size.x - panel.right > 240)
+      ? { left: panel.right + 12, top: 20 }
+      : { left: 20, top: Math.min(panel.height + 12, size.y * 0.55) };
+  }
+
   function fitSquare() {
-    var panel = $("panel").getBoundingClientRect();
+    var pad = panelClear();
     map.fitBounds(squareBounds, {
-      paddingTopLeft: [20, Math.min(panel.height + 12, map.getSize().y * 0.55)],
+      paddingTopLeft: [pad.left, pad.top],
       paddingBottomRight: [20, 30]
     });
   }
@@ -376,9 +417,9 @@
   }
 
   function onPosError(err) {
+    stopLocate();
     lGrid.className = "none"; lGrid.textContent = "— GPS unavailable —";
     subEl.textContent = err.message;
-    stopLocate();
   }
 
   function startLocate() {
@@ -405,6 +446,15 @@
     btnFollow.disabled = true; following = false;
     btnFollow.setAttribute("aria-pressed", "false");
     releaseWakeLock();
+    // Once fixes stop arriving nothing may go on looking live: a frozen dot and
+    // a frozen distance are worse than no dot and no distance.
+    if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
+    if (accCircle) { map.removeLayer(accCircle); accCircle = null; }
+    here = null;
+    lGrid.className = "none"; lGrid.textContent = "— no GPS fix —";
+    nearEl.style.display = "none";
+    hintOpening(moreEl.classList.contains("open"));
+    syncNav();
   }
 
   btnLocate.addEventListener("click", function () { watchId == null ? startLocate() : stopLocate(); });
@@ -461,7 +511,8 @@
     var d = distanceTo(p);
     if (d == null) {
       navDist.textContent = "—";
-      navWhich.textContent = "walking to plot " + n + " · finding you…";
+      navWhich.textContent = "walking to plot " + n +
+        (watchId == null ? " · GPS off" : " · finding you…");
       navArrow.style.transform = "";
       return;
     }
@@ -470,7 +521,10 @@
     // against the map, which is north-up.
     navArrow.style.transform = "rotate(" + (brg - (heading == null ? 0 : heading)).toFixed(0) + "deg)";
 
-    var close = d <= Math.max(4, here.acc || 0);
+    // A +-50 m fix would otherwise announce arrival anywhere in the field, and
+    // a plot marked out on the strength of it is in the wrong place for good.
+    var usable = (here.acc || 0) <= POOR_FIX;
+    var close = usable && d <= Math.max(4, here.acc || 0);
     navEl.classList.toggle("here", close);
     if (close) {
       navDist.textContent = "At plot " + n;
@@ -484,7 +538,8 @@
       navDist.textContent = (d < 1000 ? Math.round(d) + " m" : (d / 1000).toFixed(2) + " km") +
                             " to plot " + n;
       navWhich.textContent = Math.round(brg) + "° " + compassPoint(brg) +
-        (heading == null ? " · map is north-up" : " · follow the arrow");
+        (!usable ? " · ±" + Math.round(here.acc) + " m, too rough to place a plot"
+                 : heading == null ? " · map is north-up" : " · follow the arrow");
     }
 
     var q = plotPos(p), ll = bngToLL(q.e, q.n);
@@ -572,16 +627,16 @@
   // "centred" has to mean centred in what is left, or the thing being centred
   // ends up underneath one of them.
   function centreInView(ll, animate) {
-    var top = $("panel").getBoundingClientRect().bottom;
+    var size = map.getSize(), pad = panelClear();
     var bottom = sheet.classList.contains("open")
-      ? sheet.getBoundingClientRect().top : map.getSize().y;
-    var want = (top + bottom) / 2;
-    var size = map.getSize();
+      ? sheet.getBoundingClientRect().top : size.y;
+    var wantX = (pad.left + size.x) / 2;
+    var wantY = (pad.top + bottom) / 2;
     var at = map.latLngToContainerPoint(ll);
     // Recentre rather than pan by an offset: a pan issued from zoomend lands in
     // the middle of Leaflet's zoom animation and is dropped.
     map.setView(map.containerPointToLatLng(
-      size.divideBy(2).add(L.point(at.x - size.x / 2, at.y - want))),
+      size.divideBy(2).add(L.point(at.x - wantX, at.y - wantY))),
       map.getZoom(), { animate: !!animate, duration: .3 });
   }
 
@@ -652,6 +707,12 @@
         (r.chosen ? "✓ Chosen for survey" : "Choose for survey") + "</button>" +
       '<button id="pGo" aria-pressed="' + (survey.target === n ? "true" : "false") + '">' +
         (survey.target === n ? "Walking here" : "Walk to it") + "</button></div>");
+    // A pressed button reads as a status, not as something to press again, so
+    // taking a plot back off the list needs saying out loud.
+    if (r.chosen) {
+      h.push('<div class="stack"><button id="pDrop" class="quiet">' +
+             "Remove plot " + n + " from my list</button></div>");
+    }
 
     h.push('<p class="sub">Habitat</p><select id="pHab">' +
       HABITATS.map(function (o) {
@@ -678,7 +739,8 @@
         'unsuitable, move the plot and record where you actually put it.</p>');
     }
     h.push('<div class="stack"><button id="pMark"' + (here ? "" : " disabled") + '>' +
-      (here ? "Move plot to where I am standing" : "Move plot here — needs a GPS fix") + "</button>" +
+      (here ? "Move plot to where I am standing (±" + Math.round(here.acc) + " m)"
+            : "Move plot here — needs a GPS fix") + "</button>" +
       (r.marked ? '<button id="pUnmark">Put it back on the sheet’s point</button>' : "") +
       "</div>");
 
@@ -687,9 +749,11 @@
 
     sheetBody.innerHTML = h.join("");
 
-    $("pChoose").addEventListener("click", function () {
-      r.chosen = !r.chosen; save(); refreshPlot(n); syncPanel(); renderPlot();
-    });
+    function setChosen(v) {
+      r.chosen = v; save(); refreshPlot(n); syncPanel(); renderPlot();
+    }
+    $("pChoose").addEventListener("click", function () { setChosen(!r.chosen); });
+    if ($("pDrop")) $("pDrop").addEventListener("click", function () { setChosen(false); });
     $("pGo").addEventListener("click", function () { setTarget(n); });
     $("pHab").addEventListener("change", function () {
       r.habitat = this.value; save(); syncPanel();
@@ -758,6 +822,7 @@
   }
   btnPlots.addEventListener("click", showPlots);
 
+  syncDetail();
   GEO.plots.forEach(function (p) { refreshPlot(p.n); });
   syncFootprints();
   syncPanel();

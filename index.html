@@ -44,6 +44,8 @@
     top: calc(8px + var(--safe-t));
     left: calc(8px + var(--safe-l));
     width: min(320px, calc(100vw - 16px - var(--safe-l) - var(--safe-r)));
+    max-height: calc(100% - 16px - var(--safe-t) - var(--safe-b));
+    display: flex; flex-direction: column;
     background: var(--panel); color: var(--ink);
     border-radius: 12px; padding: 8px 10px;
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -81,7 +83,7 @@
 
   /* everything else */
   #more { display: none; margin-top: 9px; border-top: 1px solid var(--line); padding-top: 8px; }
-  #more.open { display: block; }
+  #more.open { display: block; flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .row label { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
   input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 26px; }
@@ -165,6 +167,8 @@
   .plot-row .far { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
   .empty { color: var(--muted); font-size: 13px; padding: 14px 2px; }
+  button.quiet { background: none; border-color: #4a3b3b; color: #e2a09a; font-size: 12px; min-height: 38px; }
+  button.quiet:active { background: #3a2c2c; }
 
   /* ---- GPS marker ---- */
   .gps-wrap { position: relative; width: 0; height: 0; }
