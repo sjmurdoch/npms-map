@@ -635,7 +635,10 @@
     document.body.classList.remove("sheeting");
     toggleEl.hidden = false;
     map.removeLayer(halo);
-    if (was) refreshPlot(was);          // its outline was on loan while open
+    if (was) {
+      refreshPlot(was);                 // its outline was on loan while open
+      ensureVisible(was);
+    }
   }
   sheetClose.addEventListener("click", closeSheet);
   sheetBack.addEventListener("click", function () { showPlots(); });
@@ -658,6 +661,9 @@
   // "centred" has to mean centred in what is left, or the thing being centred
   // ends up underneath one of them.
   function centreInView(ll, animate) {
+    // A pan already in flight will finish on its own target and undo this one,
+    // which happens whenever the map is recentred twice in quick succession.
+    map.stop();
     var size = map.getSize(), pad = panelClear();
     var bottom = sheet.classList.contains("open")
       ? sheet.getBoundingClientRect().top : size.y;
@@ -669,6 +675,25 @@
     map.setView(map.containerPointToLatLng(
       size.divideBy(2).add(L.point(at.x - wantX, at.y - wantY))),
       map.getZoom(), { animate: !!animate, duration: .3 });
+  }
+
+  // Closing a sheet lets the panel grow back over the map, which can bury the
+  // plot just worked on - and with it the neighbours the surveyor wants next.
+  // Slide it clear, but only when it actually needs it.
+  function ensureVisible(n) {
+    var p = plotByNum(n);
+    if (!p) return;
+    // Settle any pan still in flight first, or the plot is measured where it is
+    // passing through rather than where it is going to land.
+    map.stop();
+    var pos = plotPos(p), ll = bngToLL(pos.e, pos.n);
+    var at = map.latLngToContainerPoint(ll);
+    var pad = panelClear(), size = map.getSize();
+    var bottom = sheet.classList.contains("open")
+      ? sheet.getBoundingClientRect().top : size.y;
+    var clear = at.x > pad.left && at.x < size.x - 10 &&
+                at.y > pad.top && at.y < bottom - 10;
+    if (!clear) centreInView(ll, true);
   }
 
   // Slide the map so the plot being looked at sits in the strip of map left

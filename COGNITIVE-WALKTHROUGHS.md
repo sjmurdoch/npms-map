@@ -239,3 +239,14 @@ Raised by the user while this pass was running:
 - Task C, species recording, remains untouched; the extraction is parked in `archive/species-extraction.tar.gz`.
 - On a 375 × 667 phone with the panel expanded, the square is squeezed into about 160 px and the plot rows sit 40 px apart. Everything is reachable and tapping the numbers still works, but choosing plots is easier through the Plots list than off the map at that size.
 - Following yourself while walking to a target still centres on you, so a distant target can be off screen.
+
+---
+
+## Found by building the test suite
+
+*21 August 2026. Automating the three walkthroughs above turned two of their assumptions into failing tests.*
+
+- **Choosing a plot buried the next one.** Opening a plot slides it into the strip of map left visible while the sheet is up, which is a narrow band because the panel has shrunk to its readout. Closing the sheet lets the panel grow back over exactly that band, so the plot just chosen — and the neighbours the surveyor wants next — ended up behind it and could not be tapped. Closing now slides the plot clear, but only when it actually needs it.
+- **Two recentres in quick succession cancelled each other.** A pan already in flight finishes on its own target, so a second one issued before it lands is undone. Tapping a plot and immediately choosing and closing it hit this: the map was measured where the plot was passing through rather than where it was going to land. Both paths now settle any pan in flight first. This is the same class of failure as the `zoomend` pan dropped inside Leaflet's zoom animation, found in the second walkthrough.
+
+Neither was visible by hand at normal speed, and both were reproducible the moment the steps ran without pauses between them.
