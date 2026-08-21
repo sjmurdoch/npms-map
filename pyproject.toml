@@ -1,0 +1,23 @@
+[project]
+name = "npms-tl3443"
+version = "0"
+description = "Tests for the NPMS TL3443 field map"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-playwright>=0.5",
+]
+
+# Nothing here is importable; this file exists to pin the test tooling.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: exercises the service worker, which needs a real install cycle",
+]

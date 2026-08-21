@@ -1,2 +1,6 @@
 *.pdf
 .DS_Store
+.venv/
+.pytest_cache/
+__pycache__/
+test-results/

@@ -24,6 +24,17 @@ Add it to your home screen on iOS to get a full-screen app with no browser chrom
 
 The readout shows your grid reference, whether you are inside the square, your accuracy and heading, and the nearest plot with its distance and bearing.
 
+## Tests
+
+The suite drives the real app in a headless browser: it serves the working tree, stubs geolocation so accuracy and heading can be set exactly, and checks the georeferencing data, the plot workflow, the walk-to guidance, marker detail, layout on a phone held either way, and a full offline start.
+
+```
+uv run playwright install chromium     # once
+uv run pytest
+```
+
+`-m "not slow"` skips the service-worker tests, which need a real install cycle. Run the whole suite before committing.
+
 ## Accuracy
 
 The square is the OS National Grid monad TL3443: EPSG:27700 E534000–535000, N243000–244000. Georeferencing was derived from the sheet's vector square and cross-checked three ways — against the sheet's scale bar, against the PDF's embedded ESRI geospatial dictionary (agreeing to 1–2 m, within its coordinate rounding), and against the OS National Grid lines drawn in the raster itself (agreeing to ~1 m).
