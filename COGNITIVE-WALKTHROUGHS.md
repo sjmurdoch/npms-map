@@ -63,7 +63,7 @@ Issues found:
 
 ### Task C — record which plants are growing there
 
-**Not addressed in this round**, at the user's direction, to keep the change focused on defining plots and on the location problems. Recorded here as a known gap: the app has nothing for species at all, so every question fails at every step, and the surveyor still needs the printed species list and a paper recording sheet. A working extraction of the NPMS *Species Identification Guide* (410 entries with habitat, difficulty class, Wildflower-level flag and flowering months) exists on disk as `species.js` and `tools/extract_species.py` but is deliberately not wired into the app.
+**Not addressed in this round**, at the user's direction, to keep the change focused on defining plots and on the location problems. Recorded here as a known gap: the app has nothing for species at all, so every question fails at every step, and the surveyor still needs the printed species list and a paper recording sheet. A working extraction of the NPMS *Species Identification Guide* (410 entries with habitat, difficulty class, Wildflower-level flag and flowering months) is parked in `archive/species-extraction.tar.gz` and is deliberately not loaded by the app.
 
 ### Changes made
 
