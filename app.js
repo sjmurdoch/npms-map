@@ -174,18 +174,25 @@
   }
 
   GEO.plots.forEach(function (p) {
+    var open = function () { showPlot(p.n, false); };
+    // The dot is 16 px across, which is not a finger. An invisible disc around
+    // it, and the number itself, are the actual tap target.
+    var hit = L.circleMarker([p.lat, p.lon], {
+      radius: 22, stroke: false, fillColor: "#000", fillOpacity: 0
+    }).addTo(map);
+    hit.on("click", open);
     var marker = L.circleMarker([p.lat, p.lon], {
       radius: 8, color: "#000", weight: 2, fillColor: "#fff", fillOpacity: 1
     }).addTo(map);
-    marker.on("click", function () { showPlot(p.n, false); });
+    marker.on("click", open);
     var label = L.marker([p.lat, p.lon], {
-      interactive: false,
       icon: L.divIcon({ className: "plot-lbl", html: p.n, iconSize: [24, 16], iconAnchor: [12, -10] })
     }).addTo(map);
+    label.on("click", open);
     var foot = L.polygon(footCorners(p), {
       color: "#000", weight: 1.5, fillOpacity: .12, interactive: false
     });
-    plotLayers[p.n] = { p: p, marker: marker, label: label, foot: foot };
+    plotLayers[p.n] = { p: p, hit: hit, marker: marker, label: label, foot: foot };
   });
 
   function refreshPlot(n) {
@@ -193,6 +200,7 @@
     if (!l) return;
     var chosen = isChosen(n), target = survey.target === n;
     var pos = plotPos(l.p), ll = bngToLL(pos.e, pos.n);
+    l.hit.setLatLng(ll);
     l.marker.setLatLng(ll);
     l.label.setLatLng(ll);
     l.marker.setStyle({
@@ -256,8 +264,15 @@
   });
 
   var moreEl = $("more"), toggleEl = $("toggle");
+  // Until there is a fix the readout doubles as the opening instruction, so it
+  // has to name the button the user can actually see.
+  function hintOpening(open) {
+    if (!subEl || watchId != null || gpsMarker) return;
+    subEl.textContent = open ? "Tap Locate to start GPS" : "Tap \u25be then Locate";
+  }
   function setOpen(open) {
     moreEl.classList.toggle("open", open);
+    hintOpening(open);
     toggleEl.textContent = open ? "▴" : "▾";
     toggleEl.setAttribute("aria-expanded", String(open));
     toggleEl.setAttribute("aria-label", open ? "Hide controls" : "Show controls");
@@ -276,6 +291,7 @@
   var here = null;                     // latest fix as BNG easting/northing
   var lGrid = $("lGrid"), subEl = $("sub"), nearEl = $("near");
   var btnLocate = $("btnLocate"), btnFollow = $("btnFollow"), btnCompass = $("btnCompass");
+  hintOpening(moreEl.classList.contains("open"));
 
   var gpsIcon = L.divIcon({
     className: "", iconSize: [0, 0],
@@ -325,7 +341,7 @@
     // the visible strip instead, so marking out shows both you and the outline.
     if (following) {
       if (sheetView && sheetView.kind === "plot") reveal(sheetView.n);
-      else map.panTo(ll, { animate: true, duration: .5 });
+      else centreInView(ll, true);
     }
 
     var b = llToBng(c.latitude, c.longitude);
@@ -349,7 +365,7 @@
     });
     if (best) {
       nearest = best.p.n;
-      nearEl.style.display = "block";
+      nearEl.style.display = survey.target ? "none" : "block";
       var brg = bearingTo(best.p);
       nearEl.innerHTML = "<span>Nearest plot</span> <b>" + best.p.n + "</b> · " +
         Math.round(best.d) + " m · " + Math.round(brg) + "° " + compassPoint(brg) +
@@ -395,7 +411,7 @@
   btnFollow.addEventListener("click", function () {
     following = !following;
     btnFollow.setAttribute("aria-pressed", String(following));
-    if (following && gpsMarker) map.panTo(gpsMarker.getLatLng());
+    if (following && gpsMarker) centreInView(gpsMarker.getLatLng(), true);
   });
   map.on("dragstart", function () {
     if (following) { following = false; btnFollow.setAttribute("aria-pressed", "false"); }
@@ -422,8 +438,13 @@
     survey.target = (survey.target === n) ? null : n;
     arrived = false;
     save();
+    // You cannot be guided anywhere without a fix, and the Locate button is
+    // behind the sheet at this point, so asking to walk there starts it.
+    if (survey.target && watchId == null) startLocate();
     if (was) refreshPlot(was);
     if (survey.target) refreshPlot(survey.target);
+    if (nearest) nearEl.style.display = survey.target ? "none" : "block";
+    syncPanel();
     syncNav();
     if (sheetView) renderSheet();
   }
@@ -440,7 +461,7 @@
     var d = distanceTo(p);
     if (d == null) {
       navDist.textContent = "—";
-      navWhich.textContent = "walking to plot " + n + " · start Locate";
+      navWhich.textContent = "walking to plot " + n + " · finding you…";
       navArrow.style.transform = "";
       return;
     }
@@ -530,6 +551,7 @@
     sheetView = null;
     sheet.classList.remove("open");
     document.body.classList.remove("sheeting");
+    toggleEl.hidden = false;
     map.removeLayer(halo);
   }
   sheetClose.addEventListener("click", closeSheet);
@@ -539,10 +561,28 @@
     sheetView = view;
     sheet.classList.add("open");
     document.body.classList.add("sheeting");
+    toggleEl.hidden = true;
     sheetBack.hidden = !view.back;
     renderSheet();
     sheetBody.scrollTop = 0;
     if (view.kind === "plot") reveal(view.n, true); else map.removeLayer(halo);
+  }
+
+  // The panel covers the top of the map and a sheet covers the bottom, so
+  // "centred" has to mean centred in what is left, or the thing being centred
+  // ends up underneath one of them.
+  function centreInView(ll, animate) {
+    var top = $("panel").getBoundingClientRect().bottom;
+    var bottom = sheet.classList.contains("open")
+      ? sheet.getBoundingClientRect().top : map.getSize().y;
+    var want = (top + bottom) / 2;
+    var size = map.getSize();
+    var at = map.latLngToContainerPoint(ll);
+    // Recentre rather than pan by an offset: a pan issued from zoomend lands in
+    // the middle of Leaflet's zoom animation and is dropped.
+    map.setView(map.containerPointToLatLng(
+      size.divideBy(2).add(L.point(at.x - size.x / 2, at.y - want))),
+      map.getZoom(), { animate: !!animate, duration: .3 });
   }
 
   // Slide the map so the plot being looked at sits in the strip of map left
@@ -552,15 +592,7 @@
     if (!p) return;
     var pos = plotPos(p), ll = bngToLL(pos.e, pos.n);
     halo.setLatLng(ll).addTo(map).bringToFront();
-    var want = ($("panel").getBoundingClientRect().bottom +
-                sheet.getBoundingClientRect().top) / 2;
-    var size = map.getSize();
-    var at = map.latLngToContainerPoint(ll);
-    // Recentre rather than pan by an offset: a pan issued from zoomend lands in
-    // the middle of Leaflet's zoom animation and is dropped.
-    var centre = map.containerPointToLatLng(
-      size.divideBy(2).add(L.point(at.x - size.x / 2, at.y - want)));
-    map.setView(centre, map.getZoom(), { animate: !!animate, duration: .3 });
+    centreInView(ll, animate);
   }
   function renderSheet() {
     if (!sheetView) return;
@@ -721,7 +753,8 @@
   function syncPanel() {
     var c = chosenCount();
     btnPlots.innerHTML = "Plots for survey — <b>" + c + " of " + PLOT_GOAL + " chosen</b>";
-    hintEl.style.display = c ? "none" : "block";
+    // The hint has done its job once the surveyor has engaged with any plot.
+    hintEl.style.display = (c || survey.target) ? "none" : "block";
   }
   btnPlots.addEventListener("click", showPlots);
 
