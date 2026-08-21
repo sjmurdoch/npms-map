@@ -2,17 +2,27 @@
 
 The National Plant Monitoring Scheme square sheet for **TL3443**, georeferenced and overlaid on OpenStreetMap, with live GPS position, heading and accuracy. Built to be used on a phone in the field, including with no signal.
 
-## Using it
+## Choosing and marking out plots
+
+- Tap a numbered plot to open it. **Choose for survey** adds it to your list; the panel counts how many you have. Chosen plots turn green.
+- Each plot carries its **habitat**, its **shape** — a 5 × 5 m square or a 25 × 1 m linear plot — the **bearing** it lies along, and a free note. From zoom 17 the plot is drawn on the map at its true size, so you can see how it sits against a hedge or a field edge. **Use heading** sets the bearing from the compass, for laying a linear plot along the feature you are standing next to.
+- **Walk to it** puts a guidance row under the readout — arrow, distance, bearing — that stays visible with the panel collapsed. The arrow points where to walk if the compass is on, and against the north-up map if it is not. Inside the greater of 4 m and your GPS accuracy it changes to *At plot n*.
+- If the printed point is unusable, **Move plot to where I am standing** records where you actually put the plot and reports how far that is from the sheet's point.
+- **Copy my plot list** hands the whole plan over as plain text for the NPMS form.
+
+Everything you choose is kept on the device and works with no signal.
+
+## Using the map
 
 - **Locate** starts GPS tracking. The blue dot is your position, the shaded circle is the reported accuracy, and the cone is your heading.
 - **Compass** enables the magnetometer for a true heading while standing still. On iOS this needs a tap to grant permission. Without it, heading falls back to GPS course over ground, which only works while you are moving.
 - **Follow** keeps the map centred on you. Dragging the map turns it off.
-- **Map** fades the OS sheet against the OpenStreetMap base.
+- **NPMS sheet** fades the OS sheet against the OpenStreetMap base; **Hide sheet** does it in one tap, for checking access and field boundaries underneath. The legend under the slider names what the sheet's habitat shading means.
 - **Save offline** caches the base tiles for the square and its surroundings. The sheet itself, the plot positions and all GPS features are cached automatically on first load and work with no signal regardless.
 
 Add it to your home screen on iOS to get a full-screen app with no browser chrome.
 
-The readout shows your 8-figure grid reference, whether you are inside the square, your accuracy and heading, and the nearest plot with its distance and bearing.
+The readout shows your grid reference, whether you are inside the square, your accuracy and heading, and the nearest plot with its distance and bearing.
 
 ## Accuracy
 
