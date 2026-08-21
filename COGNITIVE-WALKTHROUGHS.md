@@ -105,3 +105,70 @@ Task B:
 - Task C is untouched. The species data is extracted and verified but not in the app.
 - "n of 5 chosen" takes five as the NPMS target for a square. Worth confirming against the square's own instructions before this is relied on.
 - The footprint is drawn centred on the plot point and aligned to grid north unless a bearing is set. That is a placement guide, not a statement of NPMS protocol; whether the scheme wants the point as the centre or a corner should be checked.
+
+---
+
+## 2. The same surveyor, second pass over the whole journey
+
+*Run 21 August 2026 against commit 57e8ac2, walking the same persona through both tasks from a clean install and exercising the controls that were already there.*
+
+The first walkthrough asked whether the tasks were possible at all. This one assumes they are and asks whether they are smooth: whether the actions are big enough to hit, whether the app ever says one thing and shows another, and whether the older controls still behave now that there is more on screen.
+
+### Task A — choose suitable plots at home
+
+| Step | Q1 goal | Q2 action visible | Q3 action associated | Q4 progress visible | Verdict |
+|---|---|---|---|---|---|
+| Open the app, read what to do first | yes | yes | **no** | yes | **fail** |
+| Tap a plot to open it | yes | yes | yes | **no** | **fail** |
+| Choose it, set its habitat, note it | yes | yes | yes | yes | **pass** |
+| Move on to the next plot | yes | yes | yes | yes | **pass** |
+| See how many are chosen | yes | yes | yes | yes | **pass** |
+| Copy the plan out | yes | yes | yes | yes | **pass** |
+
+Issues found:
+
+- **A8 — the app opened by telling the user to do something already done.** The readout's standing instruction was *"Tap ▾ then Locate"*, but the panel opens expanded, so the toggle showing was ▴ and Locate was already on screen. The first sentence the surveyor reads contradicts the first thing they see. (Q3)
+- **A9 — the plot dot was not a finger.** The tappable dot measured 16 × 16 px, and a tap landing 10 px off centre fell through to the map and panned it instead. Choosing plots is the entire task and its target was a fifth of a comfortable touch target. (Q4)
+- **A10 — the number could not be tapped.** The white numbered label is the largest and most obvious part of a plot, and it is what a hand reaches for, but it was drawn `interactive: false` and taps went straight through it to the map. (Q2, Q4)
+- **A11 — the first-run hint outlived its usefulness.** *"Tap a numbered plot on the map to choose it"* stayed on screen while the surveyor was demonstrably already working with a plot, contradicting what they had just done. (Q3)
+
+### Task B — find the plot on site and mark it out
+
+| Step | Q1 goal | Q2 action visible | Q3 action associated | Q4 progress visible | Verdict |
+|---|---|---|---|---|---|
+| Start walking to a chosen plot | yes | yes | yes | **no** | **fail** |
+| Read the guidance while walking | yes | yes | **no** | yes | **fail** |
+| Watch yourself close on the plot | yes | yes | yes | **no** | **fail** |
+| Arrive, mark out, record the position | yes | yes | yes | yes | **pass** |
+
+Issues found:
+
+- **B5 — "Walk to it" did nothing without GPS.** Tapping it set the target and then said *"walking to plot 7 · start Locate"* — but Locate lives in the panel, which the open sheet has just collapsed, so the app asked for an action whose control was not on screen. Nothing moved until the surveyor found their own way back to a hidden button. (Q4)
+- **B6 — two plots, two distances, two bearings.** With a target set, the walk-to row (*"201 m to plot 8 · 48° NE"*) sat directly above the nearest-plot row (*"Nearest plot 2 · 37 m · 207° SSW"*). Two different plots with two different bearings, stacked, in the readout someone glances at while walking across a field. (Q3)
+- **B7 — Follow put you under the panel.** Follow centred the blue dot in the map container, but the open panel covers the top 384 px of a 844 px phone screen, leaving the dot 7 px clear of its edge. On a shorter phone, following yourself hid you. (Q4)
+
+### Also checked, and working
+
+- **Save offline** downloaded 317 tiles with a live count, cleared its progress bar and re-enabled itself; a reload with the network cut served the shell, the georeferenced sheet, the base tiles and every chosen plot from cache.
+- Chosen plots, habitats, shapes, bearings, notes and marked positions all survived a reload and an offline restart.
+- Locate, Stop, Follow, Compass, Fit square, the opacity slider and the collapse toggle behave as before, and the collapsed readout is still grid reference, heading and accuracy only.
+- Tapping a second plot while a sheet is open switches the sheet to it rather than stacking or closing.
+
+### Changes made
+
+- The opening instruction is generated from the panel the user can actually see — *"Tap Locate to start GPS"* when the panel is open, *"Tap ▾ then Locate"* when it is collapsed — and stops as soon as there is a fix. (A8)
+- Every plot carries an invisible 44 px disc as its tap target, so a tap now lands from 22 px out instead of 8, and the number label is tappable and opens the plot. (A9, A10)
+- The first-run hint retires once a plot has been chosen or targeted. (A11)
+- **"Walk to it" starts GPS itself** if it is not already running, since being guided somewhere requires a fix and the button that provides one is behind the sheet at that moment. Before a fix arrives it says *"finding you…"* rather than naming a hidden control. (B5)
+- The nearest-plot row stands down while a plot is targeted, so only one distance and bearing is on screen at a time. (B6)
+- Centring — Follow, and revealing a plot — now means centring in the strip of map between the panel and any open sheet, rather than in the map container that both are covering. (B7)
+- The panel's collapse toggle is hidden while a sheet is open. It previously did nothing visible but still flipped the stored state, so the controls silently vanished later when the sheet was closed.
+
+### Defect found while testing the changes
+
+- Deriving the opening instruction inside `setOpen` crashed the whole app: `setOpen` runs during the overlay setup, before the GPS section declares `subEl`, so the hoisted `var` was still `undefined`. Nothing rendered. It is now a guarded helper called again once the GPS elements exist.
+
+### Still open
+
+- Task C, species recording, remains untouched.
+- Following yourself while walking to a target still centres on you, so a distant target can be off screen. The arrow and distance carry the guidance, which seems enough on foot, but a "show both" framing is worth trying if it does not.
