@@ -17,11 +17,13 @@
 <style>
   :root {
     --panel: rgba(20,22,26,.9);
+    --sheet: rgba(24,27,32,.97);
     --ink: #f2f4f7;
     --muted: #a9b1bd;
     --accent: #4da3ff;
     --warn: #ffb84d;
     --ok: #5fd18b;
+    --line: #333a44;
     --safe-t: env(safe-area-inset-top, 0px);
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
@@ -61,8 +63,24 @@
     font-size: 17px; line-height: 1; border-radius: 9px;
   }
 
+  /* live guidance to the plot being walked to; stays visible when collapsed */
+  #nav {
+    display: none; align-items: center; gap: 8px; margin-top: 7px;
+    border-top: 1px solid var(--line); padding-top: 7px; cursor: pointer;
+  }
+  #nav.on { display: flex; }
+  #navArrow {
+    flex: 0 0 auto; width: 34px; height: 34px;
+    transition: transform .15s linear; will-change: transform;
+  }
+  #navText { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+  #navDist { font-size: 17px; font-weight: 600; white-space: nowrap; }
+  #navWhich { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  #nav.here #navDist { color: var(--ok); }
+  #navStop { flex: 0 0 auto; width: 34px; height: 34px; padding: 0; font-size: 15px; }
+
   /* everything else */
-  #more { display: none; margin-top: 9px; border-top: 1px solid #333a44; padding-top: 8px; }
+  #more { display: none; margin-top: 9px; border-top: 1px solid var(--line); padding-top: 8px; }
   #more.open { display: block; }
   .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .row label { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
@@ -75,8 +93,23 @@
   button:active { background: #3a424c; }
   button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #06263f; font-weight: 600; }
   button:disabled { opacity: .45; }
-  #near { font-size: 13px; }
+  select, textarea, input[type=text], input[type=search] {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: #22262c; border: 1px solid #3c434c; border-radius: 8px;
+    padding: 9px 8px; width: 100%; min-height: 42px;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+
+  #btnPlots { width: 100%; text-align: left; }
+  #btnPlots b { color: var(--ok); }
+  #hint { font-size: 12px; color: var(--warn); margin-top: 8px; line-height: 1.35; }
+  #near {
+    font-size: 13px; text-align: left; background: none; border: 0;
+    padding: 6px 0 0; min-height: 0; width: 100%;
+  }
   #near span { color: var(--muted); }
+  #legend { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+  #legend i { flex: 0 0 auto; width: 13px; height: 10px; border: 1px solid #6b7280; background: #f0ffd2; }
   #status { font-size: 11px; color: var(--muted); margin-top: 8px; }
   #prog { height: 3px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 5px; display: none; }
   #prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
@@ -85,6 +118,53 @@
   #credits p { margin: 6px 0 0; line-height: 1.45; }
   .bad { color: var(--warn); }
   .good { color: var(--ok); }
+
+  /* ---- bottom sheet: the plot list and a single plot ---- */
+  /* While a sheet is open the panel shrinks to its readout, so the plot under
+     discussion stays visible on the map between the two. */
+  body.sheeting #more { display: none; }
+  #sheet {
+    position: absolute; z-index: 1300; left: 0; right: 0; bottom: 0;
+    max-width: 560px; max-height: min(62vh, 560px);
+    display: none; flex-direction: column;
+    background: var(--sheet); border-radius: 14px 14px 0 0;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 -2px 22px rgba(0,0,0,.55);
+    padding-left: var(--safe-l); padding-right: var(--safe-r);
+    border-top-right-radius: 14px;
+  }
+  #sheet.open { display: flex; }
+  #sheetHead {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+  }
+  #sheetTitle { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; }
+  #sheetTitle small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+  #sheetHead button { flex: 0 0 auto; width: 40px; padding: 0; font-size: 16px; }
+  #sheetBody {
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 10px 12px calc(14px + var(--safe-b));
+  }
+  .sub { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+  .stack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+  /* plot list */
+  .plot-row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    text-align: left; margin-top: 6px; min-height: 46px;
+  }
+  .plot-row .num {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 13px; background: #3c434c; color: var(--ink);
+  }
+  .plot-row.chosen .num { background: var(--ok); color: #06301a; }
+  .plot-row.target .num { box-shadow: 0 0 0 2px var(--warn); }
+  .plot-row .who { flex: 1; min-width: 0; }
+  .plot-row .who i { font-style: normal; color: var(--muted); font-size: 12px; display: block; }
+  .plot-row .far { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 14px 2px; }
 
   /* ---- GPS marker ---- */
   .gps-wrap { position: relative; width: 0; height: 0; }
@@ -98,6 +178,8 @@
     color: #111; font: 600 11px/14px -apple-system, system-ui, sans-serif; text-align: center;
     box-shadow: 0 1px 2px rgba(0,0,0,.25);
   }
+  .plot-lbl.chosen { background: #5fd18b; border-color: #1d7a49; }
+  .plot-lbl.target { background: #ffb84d; border-color: #8a5b06; }
   .leaflet-container { background: #1a1c20; font-family: inherit; }
   .leaflet-control-zoom { margin-top: calc(8px + var(--safe-t)) !important;
                           margin-right: calc(8px + var(--safe-r)) !important; }
@@ -121,19 +203,34 @@
     <button id="toggle" aria-label="Show controls" aria-expanded="false">▾</button>
   </div>
 
+  <div id="nav" role="button" tabindex="0" aria-label="Open the plot you are walking to">
+    <svg id="navArrow" viewBox="0 0 34 34" aria-hidden="true">
+      <path d="M17 3 L27 29 L17 23 L7 29 Z" fill="#ffb84d" stroke="#14161a" stroke-width="1.5"/>
+    </svg>
+    <div id="navText">
+      <div id="navDist">—</div>
+      <div id="navWhich">walking to plot —</div>
+    </div>
+    <button id="navStop" aria-label="Stop walking to this plot">✕</button>
+  </div>
+
   <div id="more">
-    <div id="near"><span>Nearest plot</span> —</div>
+    <button id="btnPlots">Plots for survey — <b>0 of 5 chosen</b></button>
+    <div id="hint">Tap a numbered plot on the map to choose it.</div>
+    <button id="near" style="display:none"><span>Nearest plot</span> —</button>
     <div class="row">
-      <label for="op">Map</label>
-      <input type="range" id="op" min="0" max="100" value="85">
+      <label for="op">NPMS sheet</label>
+      <input type="range" id="op" min="0" max="100" value="85" aria-label="NPMS sheet opacity over the base map">
       <span id="opv" style="width:2.8em;text-align:right;color:var(--muted);font-size:12px">85%</span>
     </div>
+    <div id="legend"><i></i> shading = broadleaved woodland, hedges &amp; scrub</div>
     <div class="row">
       <button id="btnLocate" aria-pressed="false">Locate</button>
       <button id="btnFollow" aria-pressed="false" disabled>Follow</button>
       <button id="btnCompass">Compass</button>
     </div>
     <div class="row">
+      <button id="btnSheet">Hide sheet</button>
       <button id="btnFit">Fit square</button>
       <button id="btnOffline">Save offline</button>
     </div>
@@ -153,6 +250,15 @@
          transformed to WGS84 with ~1 m accuracy.</p>
     </details>
   </div>
+</div>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div id="sheetHead">
+    <button id="sheetBack" aria-label="Back" hidden>‹</button>
+    <div id="sheetTitle"></div>
+    <button id="sheetClose" aria-label="Close">✕</button>
+  </div>
+  <div id="sheetBody"></div>
 </div>
 
 <script src="vendor/leaflet.js"></script>
