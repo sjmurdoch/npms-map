@@ -2,6 +2,8 @@
 
 The National Plant Monitoring Scheme square sheet for **TL3443**, georeferenced and overlaid on OpenStreetMap, with live GPS position, heading and accuracy. Built to be used on a phone in the field, including with no signal.
 
+[DOCUMENTATION.md](DOCUMENTATION.md) describes every feature in full; what follows is the short version.
+
 ## Choosing and marking out plots
 
 - Tap a numbered plot to open it. **Choose for survey** adds it to your list; the panel counts how many you have. Chosen plots turn green, and *Remove plot n from my list* takes one back off. Zoomed out the numbers drop away and the plots become plain dots, so the lattice stays readable.
