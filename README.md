@@ -7,7 +7,7 @@ The National Plant Monitoring Scheme square sheet for **TL3443**, georeferenced 
 - Tap a numbered plot to open it. **Choose for survey** adds it to your list; the panel counts how many you have. Chosen plots turn green, and *Remove plot n from my list* takes one back off. Zoomed out the numbers drop away and the plots become plain dots, so the lattice stays readable.
 - Each plot carries its **habitat**, its **shape** — a 5 × 5 m square or a 25 × 1 m linear plot — the **bearing** it lies along, and a free note. Zoomed in past about 30 m across, the plot is drawn on the map at its true size, so you can see how it sits against a hedge or a field edge. The square straddles the sheet's point; the linear plot starts there and runs its 25 m out along the bearing, so the bearing goes the whole way round the compass, 0–359°, and 90° and 270° lay the tape opposite ways. Only plots you have chosen, are walking to, or have open are outlined — the rest stay as plain markers. **Use heading** sets the bearing from the compass, for laying a linear plot along the feature you are standing next to and in the direction you are facing.
 - **Walk to it** puts a guidance row under the readout — arrow, distance, bearing — that stays visible with the panel collapsed. The arrow points where to walk if the compass is on, and against the north-up map if it is not. Inside the greater of 4 m and your GPS accuracy it changes to *At plot n* — but only once the fix is good enough to place a plot at all. A fix worse than ±15 m says so instead of claiming you have arrived, and stopping GPS clears the readout rather than leaving the last position looking live.
-- If the printed point is unusable, **Move plot to where I am standing** records where you actually put the plot and reports how far that is from the sheet's point.
+- If the printed point is unusable, the plot can be moved. **Move plot to where I am standing** records where you actually put it, and **Move plot on the map** hands the map over instead: tap where the plot really goes and the marker, its number and its outline land there, tap again to adjust, then *Put plot n here* to keep it or *Cancel* to leave it where it was. Tapping needs no GPS, so a plot can be lifted off a ditch or the wrong side of a hedge while planning at home, and a tap outside the monad says so. Either way the new grid reference and the distance from the sheet's point are reported, and *Put it back on the sheet's point* undoes it.
 - **Copy my plot list** hands the whole plan over as plain text for the NPMS form.
 
 Everything you choose is kept on the device and works with no signal.
@@ -26,7 +26,7 @@ The readout shows your grid reference, whether you are inside the square, your a
 
 ## Tests
 
-The suite drives the real app in a headless browser: it serves the working tree, stubs geolocation so accuracy and heading can be set exactly, and checks the georeferencing data, the plot workflow, the walk-to guidance, marker detail, layout on a phone held either way, and a full offline start.
+The suite drives the real app in a headless browser: it serves the working tree, stubs geolocation so accuracy and heading can be set exactly, and checks the georeferencing data, the plot workflow, moving a plot by tapping the map, the walk-to guidance, marker detail, layout on a phone held either way, and a full offline start.
 
 ```
 uv run playwright install chromium     # once

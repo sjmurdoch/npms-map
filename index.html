@@ -124,7 +124,7 @@
   /* ---- bottom sheet: the plot list and a single plot ---- */
   /* While a sheet is open the panel shrinks to its readout, so the plot under
      discussion stays visible on the map between the two. */
-  body.sheeting #more { display: none; }
+  body.sheeting #more, body.placing #more { display: none; }
   #sheet {
     position: absolute; z-index: 1300; left: 0; right: 0; bottom: 0;
     max-width: 560px; max-height: min(62vh, 560px);
@@ -169,6 +169,21 @@
   .empty { color: var(--muted); font-size: 13px; padding: 14px 2px; }
   button.quiet { background: none; border-color: #4a3b3b; color: #e2a09a; font-size: 12px; min-height: 38px; }
   button.quiet:active { background: #3a2c2c; }
+
+  /* ---- moving a plot by tapping the map ---- */
+  /* Takes the bottom of the screen like a sheet, and shrinks the panel the same
+     way, so the map between them is clear to tap. */
+  #place {
+    position: absolute; z-index: 1300; left: 0; right: 0; bottom: 0;
+    max-width: 560px; display: none;
+    background: var(--sheet); border-radius: 14px 14px 0 0;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 -2px 22px rgba(0,0,0,.55);
+    padding: 11px calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l));
+  }
+  body.placing #place { display: block; }
+  #placeText { font-size: 13px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+  #placeText b { color: var(--ok); }
 
   /* ---- GPS marker ---- */
   .gps-wrap { position: relative; width: 0; height: 0; }
@@ -253,6 +268,14 @@
          Georeferenced to OSGB36 / British National Grid (EPSG:27700); positions
          transformed to WGS84 with ~1 m accuracy.</p>
     </details>
+  </div>
+</div>
+
+<div id="place" role="group" aria-label="Move a plot on the map">
+  <div id="placeText" aria-live="polite">Tap the map where the plot really is.</div>
+  <div class="row">
+    <button id="placeOk" disabled>Put it here</button>
+    <button id="placeCancel" class="quiet">Cancel</button>
   </div>
 </div>
 

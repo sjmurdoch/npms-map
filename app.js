@@ -126,9 +126,16 @@
     for (var i = 0; i < GEO.plots.length; i++) if (GEO.plots[i].n === n) return GEO.plots[i];
     return null;
   }
-  // Where the plot actually is: the sheet's lattice point, or where it was marked out.
+  // The plot currently being moved on the map, and where the last tap put it:
+  // { n: plot number, at: {e, n} }, at being null until the first tap.
+  var placing = null;
+
+  // Where the plot actually is: the sheet's lattice point, where it was marked
+  // out, or — while it is being moved — where the last tap put it, so the marker
+  // and the outline show the move before it is committed.
   function plotPos(p) {
     var r = rec(p.n);
+    if (placing && placing.n === p.n && placing.at) return placing.at;
     return (r && r.marked) ? r.marked : { e: p.e, n: p.n_ };
   }
 
@@ -193,7 +200,9 @@
   }
 
   GEO.plots.forEach(function (p) {
-    var open = function () { showPlot(p.n, false); };
+    // While a plot is being moved the markers are just more map to tap on:
+    // opening one instead would take the surveyor away mid-move.
+    var open = function (e) { if (placing) placeAt(e.latlng); else showPlot(p.n, false); };
     // The dot is 16 px across, which is not a finger. An invisible disc around
     // it, and the number itself, are the actual tap target.
     var hit = L.circleMarker([p.lat, p.lon], {
@@ -248,7 +257,8 @@
     // An outline belongs to a plot the surveyor is actually working with. Drawn
     // for all twenty-four it is clutter that unchoosing the plot cannot clear.
     var open = sheetView && sheetView.kind === "plot" && sheetView.n === n;
-    var showFoot = map.getZoom() >= FOOT_ZOOM && (chosen || target || open);
+    var moving = !!(placing && placing.n === n);
+    var showFoot = map.getZoom() >= FOOT_ZOOM && (chosen || target || open || moving);
     if (showFoot !== footGroup.hasLayer(l.foot)) {
       showFoot ? footGroup.addLayer(l.foot) : footGroup.removeLayer(l.foot);
     }
@@ -647,6 +657,7 @@
   sheetBack.addEventListener("click", function () { showPlots(); });
 
   function openSheet(view) {
+    if (placing) endPlacing(false);
     var was = sheetView && sheetView.kind === "plot" ? sheetView.n : null;
     sheetView = view;
     sheet.classList.add("open");
@@ -663,13 +674,19 @@
   // The panel covers the top of the map and a sheet covers the bottom, so
   // "centred" has to mean centred in what is left, or the thing being centred
   // ends up underneath one of them.
+  // Where the map stops being visible: the sheet, or the bar shown while a plot
+  // is being moved, whichever is up.
+  function viewBottom() {
+    var el = sheet.classList.contains("open") ? sheet
+           : document.body.classList.contains("placing") ? $("place") : null;
+    return el ? el.getBoundingClientRect().top : map.getSize().y;
+  }
+
   function centreInView(ll, animate) {
     // A pan already in flight will finish on its own target and undo this one,
     // which happens whenever the map is recentred twice in quick succession.
     map.stop();
-    var size = map.getSize(), pad = panelClear();
-    var bottom = sheet.classList.contains("open")
-      ? sheet.getBoundingClientRect().top : size.y;
+    var size = map.getSize(), pad = panelClear(), bottom = viewBottom();
     var wantX = (pad.left + size.x) / 2;
     var wantY = (pad.top + bottom) / 2;
     var at = map.latLngToContainerPoint(ll);
@@ -691,9 +708,7 @@
     map.stop();
     var pos = plotPos(p), ll = bngToLL(pos.e, pos.n);
     var at = map.latLngToContainerPoint(ll);
-    var pad = panelClear(), size = map.getSize();
-    var bottom = sheet.classList.contains("open")
-      ? sheet.getBoundingClientRect().top : size.y;
+    var pad = panelClear(), size = map.getSize(), bottom = viewBottom();
     var clear = at.x > pad.left && at.x < size.x - 10 &&
                 at.y > pad.top && at.y < bottom - 10;
     if (!clear) centreInView(ll, true);
@@ -708,6 +723,60 @@
     halo.setLatLng(ll).addTo(map).bringToFront();
     centreInView(ll, animate);
   }
+  // ------------------------------------------- moving a plot on the map
+  // Standing on the spot and tapping "where I am standing" is the field answer,
+  // and the honest one. It is no use at the kitchen table, where the aerial view
+  // shows the hedge but the GPS is forty miles away, and no use on site either
+  // when the plot lands in the middle of a river you can see but not stand in.
+  var placeText = $("placeText"), placeOk = $("placeOk"), placeCancel = $("placeCancel");
+
+  function startPlacing(n) {
+    closeSheet();                       // the map is the thing being worked with now
+    placing = { n: n, at: null };
+    document.body.classList.add("placing");
+    toggleEl.hidden = true;
+    placeOk.disabled = true;
+    placeOk.textContent = "Put plot " + n + " here";
+    placeText.textContent = "Tap the map where plot " + n + " really is.";
+    refreshPlot(n);
+    reveal(n, true);                    // haloed, so it is clear which plot is moving
+  }
+
+  function placeAt(ll) {
+    if (!placing) return;
+    var b = llToBng(ll.lat, ll.lng), p = plotByNum(placing.n);
+    var sq = GEO.sq_bng;
+    placing.at = { e: b.e, n: b.n };
+    placeText.innerHTML = "Plot " + placing.n + " to <b>" + gridRef(b.e, b.n, 10) + "</b> · " +
+      Math.round(Math.hypot(b.e - p.e, b.n - p.n_)) + " m from the sheet\u2019s point" +
+      (b.e >= sq.e0 && b.e <= sq.e1 && b.n >= sq.n0 && b.n <= sq.n1
+        ? " · tap again to adjust" : ' · <span class="bad">outside the square</span>');
+    placeOk.disabled = false;
+    refreshPlot(placing.n);
+    halo.setLatLng(bngToLL(b.e, b.n));
+  }
+
+  // Leaves the mode either way; what to show next is the caller's business, so
+  // that opening some other sheet mid-move does not fight over the map.
+  function endPlacing(commit) {
+    if (!placing) return null;
+    var n = placing.n, at = placing.at;
+    placing = null;
+    document.body.classList.remove("placing");
+    toggleEl.hidden = false;
+    if (commit && at) {
+      var r = rec(n, true);
+      r.marked = at; r.chosen = true;
+      save();
+    }
+    refreshPlot(n); syncPanel(); syncNav();
+    return n;
+  }
+
+  map.on("click", function (e) { placeAt(e.latlng); });
+  placeOk.addEventListener("click", function () { showPlot(endPlacing(true), false); });
+  placeCancel.addEventListener("click", function () { showPlot(endPlacing(false), false); });
+
   function renderSheet() {
     if (!sheetView) return;
     if (sheetView.kind === "plots") renderPlots(); else renderPlot();
@@ -798,11 +867,13 @@
         " · " + moved.toFixed(0) + " m from the sheet's point</p>");
     } else {
       h.push('<p class="sub">Using the point printed on the NPMS sheet. If that spot is ' +
-        'unsuitable, move the plot and record where you actually put it.</p>');
+        'unsuitable, move the plot — by standing where you put it, or by tapping ' +
+        'the map, which needs no GPS at all.</p>');
     }
     h.push('<div class="stack"><button id="pMark"' + (here ? "" : " disabled") + '>' +
       (here ? "Move plot to where I am standing (±" + Math.round(here.acc) + " m)"
             : "Move plot here — needs a GPS fix") + "</button>" +
+      '<button id="pPlace">Move plot on the map</button>' +
       (r.marked ? '<button id="pUnmark">Put it back on the sheet’s point</button>' : "") +
       "</div>");
 
@@ -833,6 +904,7 @@
       brg.value = r.bearing; brgV.textContent = r.bearing + "°";
       save(); refreshPlot(n);
     });
+    $("pPlace").addEventListener("click", function () { startPlacing(n); });
     $("pMark").addEventListener("click", function () {
       if (!here) return;
       r.marked = { e: here.e, n: here.n }; r.chosen = true;

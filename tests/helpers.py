@@ -1,4 +1,5 @@
 """Small vocabulary for driving the app, in the terms the app itself uses."""
+import math
 import re
 
 # Fixed reference points from geo.js, so tests can talk in eastings/northings.
@@ -145,6 +146,22 @@ def pixels_per_metre(page):
     """Read the map's scale off the lattice, so tests need not know the zoom."""
     settled(page)
     return marker_gap(page) / 166.667
+
+
+def metres_apart(page, a, b):
+    """Ground distance between two plots as drawn, read off their numbers.
+
+    Taken between two plots rather than from one plot to a fixed screen
+    position, so that a pan between measurements does not count as a move.
+    """
+    (ax, ay), (bx, by) = plot_point(page, a), plot_point(page, b)
+    return math.hypot(bx - ax, by - ay) / pixels_per_metre(page)
+
+
+def sheet_point(page, n):
+    """A plot's printed point on the NPMS sheet, in eastings and northings."""
+    return page.evaluate(
+        "(n) => { const p = GEO.plots.find((q) => q.n === n); return [p.e, p.n_]; }", n)
 
 
 def set_bearing(page, degrees):
