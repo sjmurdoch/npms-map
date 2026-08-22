@@ -149,16 +149,21 @@ def settled(page):
     """
     page.evaluate("() => { window.__settle = null; }")
     page.wait_for_function("""() => {
+      // Leaflet's zoom animation eases out, so the last frames of it barely move
+      // and can look stopped; and the app only puts the plot numbers back when
+      // the animation ends. Both have to be over, not just the movement.
+      const animating = document.querySelector('.leaflet-zoom-anim') !== null;
       const el = document.querySelector('.plot-lbl') ||
                  document.querySelector('.leaflet-overlay-pane path');
       if (!el) return false;
       const box = el.getBoundingClientRect();
       const foot = document.querySelector('path.plot-foot');
-      const now = [box.x, box.y, box.width, box.height,
+      const now = [animating, document.querySelectorAll('.plot-lbl').length,
+                   box.x, box.y, box.width, box.height,
                    foot ? foot.getAttribute('d') : ''].join('|');
       const was = window.__settle;
       window.__settle = now;
-      return was !== null && now === was;
+      return !animating && was !== null && now === was;
     }""")
 
 
