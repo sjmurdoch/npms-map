@@ -87,13 +87,37 @@ def labels(page):
     return page.locator(".plot-lbl").count()
 
 
+def map_scale(page):
+    """The map's zoom, as the scale Leaflet keeps on its animation proxy.
+
+    It doubles with every zoom step. Measuring something drawn on the map
+    instead does not work: Leaflet clips its paths to the view, so the square
+    stops growing as soon as you are zoomed inside it.
+    """
+    return page.evaluate("""() => {
+      const el = document.querySelector('.leaflet-proxy');
+      return el ? new DOMMatrixReadOnly(getComputedStyle(el).transform).a : 0;
+    }""")
+
+
 def zoom(page, steps):
-    """Click the zoom control and let the map settle."""
+    """Click the zoom control until the map has really zoomed that many steps.
+
+    A click that lands in the middle of Leaflet's zoom animation is dropped, so
+    waiting a fixed moment between clicks and hoping left a test asserting
+    against a map that had zoomed fewer steps than it asked for - rarely here,
+    reliably on a loaded CI runner.
+    """
     control = ".leaflet-control-zoom-" + ("in" if steps > 0 else "out")
-    for _ in range(abs(steps)):
-        page.locator(control).click()
-        page.wait_for_timeout(220)
-    page.wait_for_timeout(350)
+    for step in range(abs(steps)):
+        for _ in range(3):
+            before = map_scale(page)
+            page.locator(control).click()
+            settled(page)
+            if abs(map_scale(page) - before) > before * 0.02:
+                break
+        else:
+            raise AssertionError(f"the map would not zoom (step {step + 1} of {abs(steps)})")
 
 
 def marker_gap(page):
