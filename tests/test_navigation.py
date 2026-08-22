@@ -1,9 +1,12 @@
 """Walking to a plot and marking it out: the surveyor's second task."""
 import re
+from pathlib import Path
 
 from playwright.sync_api import expect
 
 from helpers import PLOT8, close_sheet, locate, open_plot, stand_at, stored
+
+APP = Path(__file__).resolve().parent.parent
 
 AWAY = (534350.0, 243200.0)      # ~201 m south-west of plot 8, bearing 48 degrees
 AT_PLOT8 = (534502.0, 243334.0)  # 2 m from the sheet's point
@@ -68,6 +71,51 @@ def test_turning_the_compass_on_leaves_the_button_alone(app):
     button.click()
     expect(button).to_have_text("Compass")
     expect(button).to_have_attribute("aria-pressed", "true")
+    assert button.bounding_box()["height"] == one_line
+
+
+def button_height(page, label, pressed):
+    """How tall the compass button stands wearing a given label.
+
+    The pressed state is bold, and bold is wider, so a label has to be measured
+    in the state it is actually shown in.
+    """
+    return page.evaluate("""([text, pressed]) => {
+      const b = document.getElementById('btnCompass');
+      const wasText = b.textContent, wasPressed = b.getAttribute('aria-pressed');
+      b.textContent = text;
+      b.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+      const height = b.getBoundingClientRect().height;
+      b.textContent = wasText;
+      if (wasPressed === null) b.removeAttribute('aria-pressed');
+      else b.setAttribute('aria-pressed', wasPressed);
+      return height;
+    }""", [label, pressed])
+
+
+def test_no_state_of_the_compass_button_wraps(app):
+    """A button on two lines leaves the row of three sitting ragged."""
+    one_line = app.locator("#btnLocate").bounding_box()["height"]
+    labels = re.findall(r'btnCompass\.textContent = "([^"]+)"', (APP / "app.js").read_text())
+    assert labels, "the compass button's labels have moved"
+    for label in labels:                       # every way it can report a failure
+        assert button_height(app, label, False) == one_line, f"{label!r} wraps"
+    assert button_height(app, "Compass", True) == one_line, "the pressed label wraps"
+
+
+def test_a_device_with_no_compass_is_told_so_on_one_line(app):
+    """The branch a phone without a magnetometer takes, run for real."""
+    one_line = app.locator("#btnLocate").bounding_box()["height"]
+    app.add_init_script(
+        "Object.defineProperty(window, 'DeviceOrientationEvent',"
+        " { configurable: true, value: undefined });")
+    app.reload()
+    app.wait_for_function(
+        "() => document.querySelectorAll('.leaflet-overlay-pane path').length > 0")
+    button = app.locator("#btnCompass")
+    button.click()
+    expect(button).to_have_text("No compass")
+    expect(button).to_be_disabled()
     assert button.bounding_box()["height"] == one_line
 
 
