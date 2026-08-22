@@ -174,17 +174,20 @@
   var detail = "full";
 
   // Corners of a plot's ground footprint, in the order they would be walked.
+  // The square straddles the sheet's point; the linear plot starts there and
+  // runs the full 25 m out along its bearing, the way the tape is laid.
   function footCorners(p) {
     var r = rec(p.n), pos = plotPos(p);
     var linear = !!(r && r.shape === "linear");
     var a = ((r && r.bearing) || 0) * Math.PI / 180;
-    var along = linear ? LINEAR_M[0] / 2 : SQUARE_M / 2;
-    var across = linear ? LINEAR_M[1] / 2 : SQUARE_M / 2;
+    var len = linear ? LINEAR_M[0] : SQUARE_M;
+    var across = (linear ? LINEAR_M[1] : SQUARE_M) / 2;
+    var back = linear ? 0 : len / 2;                   // how far behind the point it reaches
     var ue = Math.sin(a), un = Math.cos(a);            // unit vector along the plot
     var out = [];
-    [[1, 1], [1, -1], [-1, -1], [-1, 1]].forEach(function (s) {
-      out.push(bngToLL(pos.e + s[0] * along * ue + s[1] * across * un,
-                       pos.n + s[0] * along * un - s[1] * across * ue));
+    [[len - back, 1], [len - back, -1], [-back, -1], [-back, 1]].forEach(function (s) {
+      out.push(bngToLL(pos.e + s[0] * ue + s[1] * across * un,
+                       pos.n + s[0] * un - s[1] * across * ue));
     });
     return out;
   }
@@ -781,10 +784,13 @@
       '<button id="pSq" aria-pressed="' + (r.shape !== "linear") + '">Square 5 × 5 m</button>' +
       '<button id="pLin" aria-pressed="' + (r.shape === "linear") + '">Linear 25 × 1 m</button></div>' +
       '<div class="row"><label for="pBrg">Bearing</label>' +
-      '<input type="range" id="pBrg" min="0" max="179" value="' + (r.bearing || 0) + '">' +
+      '<input type="range" id="pBrg" min="0" max="359" value="' + (r.bearing || 0) + '">' +
       '<span id="pBrgV" style="width:3.2em;text-align:right;color:var(--muted);font-size:12px">' +
       (r.bearing || 0) + '°</span>' +
-      '<button id="pBrgHead" style="flex:0 0 auto;min-height:34px;padding:6px 8px">Use heading</button></div>');
+      '<button id="pBrgHead" style="flex:0 0 auto;min-height:34px;padding:6px 8px">Use heading</button></div>' +
+      '<p class="sub">' + (r.shape === "linear"
+        ? "The 25 m runs out from the plot\u2019s point along this bearing, so walk it that way."
+        : "The square sits centred on the plot\u2019s point, turned to this bearing.") + "</p>");
 
     h.push('<p class="sub">Where the plot really is</p>');
     if (r.marked) {
@@ -823,7 +829,7 @@
     brg.addEventListener("change", save);
     $("pBrgHead").addEventListener("click", function () {
       if (heading == null) { brgV.textContent = "no compass"; return; }
-      r.bearing = Math.round(heading) % 180;
+      r.bearing = Math.round(heading) % 360;
       brg.value = r.bearing; brgV.textContent = r.bearing + "°";
       save(); refreshPlot(n);
     });
@@ -849,8 +855,9 @@
       lines.push("Plot " + p.n + "  " + gridRef(pos.e, pos.n, 10) +
                  (r.marked ? " (marked out)" : " (sheet point)"));
       lines.push("  Habitat: " + (r.habitat ? habitatName(r.habitat) : "not set"));
-      lines.push("  Plot: " + (r.shape === "linear" ? "25 × 1 m linear" : "5 × 5 m square") +
-                 ", bearing " + (r.bearing || 0) + "°");
+      lines.push("  Plot: " + (r.shape === "linear"
+                 ? "25 × 1 m linear, running " + (r.bearing || 0) + "° out from the point"
+                 : "5 × 5 m square, bearing " + (r.bearing || 0) + "°"));
       if (r.note) lines.push("  Notes: " + r.note);
     });
     if (lines.length === 1) lines.push("", "(none chosen yet)");

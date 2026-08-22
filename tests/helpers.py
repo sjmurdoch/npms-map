@@ -110,3 +110,43 @@ def marker_gap(page):
       const a = box(1), b = box(6);
       return a && b ? Math.abs(b.y - a.y) : null;
     }""")
+
+
+def settled(page):
+    """Wait until the map has stopped moving.
+
+    Opening a plot pans it clear of the panel, and until that animation ends the
+    labels are still at their old place and the outline has no path at all.
+    """
+    page.wait_for_function("""() => {
+      const pane = document.querySelector('.leaflet-map-pane');
+      const foot = document.querySelector('path.plot-foot');
+      const now = pane.style.transform + '|' + (foot ? foot.getAttribute('d') : '');
+      const was = window.__settle;
+      window.__settle = now;
+      return now === was;
+    }""")
+
+
+def plot_point(page, n):
+    """Where a plot's point sits on screen, read off its number's anchor."""
+    settled(page)
+    box = page.locator(".plot-lbl", has_text=re.compile(rf"^{n}$")).first.bounding_box()
+    return box["x"] + 12, box["y"] - 10       # the label's iconAnchor, from app.js
+
+
+def footprint(page):
+    """The screen box of the one outline currently drawn."""
+    settled(page)
+    return page.locator("path.plot-foot").first.bounding_box()
+
+
+def pixels_per_metre(page):
+    """Read the map's scale off the lattice, so tests need not know the zoom."""
+    settled(page)
+    return marker_gap(page) / 166.667
+
+
+def set_bearing(page, degrees):
+    page.locator("#pBrg").fill(str(degrees))
+    page.locator("#pBrg").dispatch_event("change")

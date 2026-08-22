@@ -1,10 +1,12 @@
 """How the map draws plots: outlines, marker detail, and the readout."""
 import re
 
+import pytest
 from playwright.sync_api import expect
 
-from helpers import (choose, close_sheet, labels, locate, marker_gap,
-                     open_plot, outlines, stand_at, zoom)
+from helpers import (choose, close_sheet, footprint, labels, locate,
+                     marker_gap, open_plot, outlines, pixels_per_metre,
+                     plot_point, set_bearing, stand_at, zoom)
 
 
 def test_no_outlines_are_drawn_for_plots_nobody_chose(app):
@@ -110,3 +112,39 @@ def test_the_opacity_slider_and_the_button_agree(app):
     app.locator("#op").dispatch_event("input")
     expect(app.locator("#opv")).to_have_text("40%")
     expect(app.locator("#btnSheet")).to_have_text("Hide sheet")
+
+
+def test_a_linear_plot_runs_out_from_the_point_along_its_bearing(app):
+    """The tape starts at the sheet's point: nothing of it lies behind."""
+    zoom(app, 4)
+    open_plot(app, 13)
+    app.locator("#pLin").click()
+    set_bearing(app, 0)
+    px, py = plot_point(app, 13)
+    box, ppm = footprint(app), pixels_per_metre(app)
+    assert box["height"] == pytest.approx(25 * ppm, abs=4)
+    assert box["width"] == pytest.approx(ppm, abs=4)
+    assert box["y"] + box["height"] == pytest.approx(py, abs=4)   # near end at the point
+    assert box["x"] + box["width"] / 2 == pytest.approx(px, abs=4)
+
+
+def test_a_linear_plot_can_run_south_of_the_point(app):
+    """Half a circle of bearings would have made this one impossible."""
+    zoom(app, 4)
+    open_plot(app, 13)
+    app.locator("#pLin").click()
+    set_bearing(app, 180)
+    px, py = plot_point(app, 13)
+    box, ppm = footprint(app), pixels_per_metre(app)
+    assert box["height"] == pytest.approx(25 * ppm, abs=4)
+    assert box["y"] == pytest.approx(py, abs=4)                   # runs away southwards
+
+
+def test_a_square_plot_still_straddles_the_point(app):
+    zoom(app, 4)
+    open_plot(app, 13)
+    px, py = plot_point(app, 13)
+    box, ppm = footprint(app), pixels_per_metre(app)
+    assert box["height"] == pytest.approx(5 * ppm, abs=4)
+    assert box["y"] + box["height"] / 2 == pytest.approx(py, abs=4)
+    assert box["x"] + box["width"] / 2 == pytest.approx(px, abs=4)

@@ -4,7 +4,7 @@ import re
 from playwright.sync_api import expect
 
 from helpers import (PLOT8, choose, close_sheet, locate, open_plot,
-                     stored, tap_plot_on_map)
+                     set_bearing, stored, tap_plot_on_map)
 
 
 def test_tapping_the_number_opens_that_plot(app):
@@ -60,14 +60,32 @@ def test_habitat_shape_bearing_and_notes_are_recorded(app):
     app.locator("#pChoose").click()
     app.locator("#pHab").select_option("woodland")
     app.locator("#pLin").click()
-    app.locator("#pBrg").fill("70")
-    app.locator("#pBrg").dispatch_event("change")
+    set_bearing(app, 70)
     app.locator("#pNote").fill("Hedge along the field edge")
     close_sheet(app)
     rec = stored(app)["plots"]["7"]
     assert rec["chosen"] and rec["habitat"] == "woodland"
     assert rec["shape"] == "linear" and rec["bearing"] == 70
     assert rec["note"] == "Hedge along the field edge"
+
+
+def test_a_bearing_can_point_anywhere_round_the_compass(app):
+    """A linear plot runs one way out of its point, so half a circle is not enough."""
+    open_plot(app, 7)
+    app.locator("#pLin").click()
+    set_bearing(app, 250)
+    close_sheet(app)
+    assert stored(app)["plots"]["7"]["bearing"] == 250
+
+
+def test_use_heading_takes_the_direction_you_are_facing(app):
+    """Facing south-west and folding that onto 20 degrees would lay the tape backwards."""
+    locate(app, *PLOT8, heading=200, speed=2)
+    open_plot(app, 7)
+    app.locator("#pLin").click()
+    app.locator("#pBrgHead").click()
+    close_sheet(app)
+    assert stored(app)["plots"]["7"]["bearing"] == 200
 
 
 def test_the_next_plot_stays_tappable_after_choosing_one(app):

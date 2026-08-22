@@ -250,3 +250,11 @@ Raised by the user while this pass was running:
 - **Two recentres in quick succession cancelled each other.** A pan already in flight finishes on its own target, so a second one issued before it lands is undone. Tapping a plot and immediately choosing and closing it hit this: the map was measured where the plot was passing through rather than where it was going to land. Both paths now settle any pan in flight first. This is the same class of failure as the `zoomend` pan dropped inside Leaflet's zoom animation, found in the second walkthrough.
 
 Neither was visible by hand at normal speed, and both were reproducible the moment the steps ran without pauses between them.
+
+---
+
+## Answered by the surveyor
+
+*22 August 2026.*
+
+- **Which end of the plot the point is.** The first walkthrough left open whether the scheme puts the sheet's point at the centre of the plot or at one end, and the app had guessed the centre for both shapes. For the linear plot it is the end: the 25 m starts at the monad point and runs out along the bearing. That makes the bearing a direction rather than an alignment, so it now goes the whole way round the compass — 0–359°, where before it stopped at 179° — and **Use heading** stamps the direction being faced instead of folding a southerly one onto the northern half. The square is unchanged and still straddles the point.
