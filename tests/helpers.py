@@ -116,16 +116,25 @@ def marker_gap(page):
 def settled(page):
     """Wait until the map has stopped moving.
 
-    Opening a plot pans it clear of the panel, and until that animation ends the
-    labels are still at their old place and the outline has no path at all.
+    Opening or moving a plot pans it clear of the panel, and until that has
+    finished the labels are still on their way and the outline has no path at
+    all. Leaflet animates with a CSS transition, setting the pane's transform
+    once and letting the browser tween it, so the style says nothing about
+    whether anything is still moving; where a marker is actually drawn, frame to
+    frame, does.
     """
+    page.evaluate("() => { window.__settle = null; }")
     page.wait_for_function("""() => {
-      const pane = document.querySelector('.leaflet-map-pane');
+      const el = document.querySelector('.plot-lbl') ||
+                 document.querySelector('.leaflet-overlay-pane path');
+      if (!el) return false;
+      const box = el.getBoundingClientRect();
       const foot = document.querySelector('path.plot-foot');
-      const now = pane.style.transform + '|' + (foot ? foot.getAttribute('d') : '');
+      const now = [box.x, box.y, box.width, box.height,
+                   foot ? foot.getAttribute('d') : ''].join('|');
       const was = window.__settle;
       window.__settle = now;
-      return now === was;
+      return was !== null && now === was;
     }""")
 
 
