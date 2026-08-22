@@ -1,0 +1,63 @@
+# Builds the field map and publishes it to GitHub Pages.
+#
+# The site is stamped with the commit it was built from, so a phone in a field
+# can be asked which version it is running, and the service worker's cache is
+# named after that commit, so each deploy retires the previous shell.
+#
+# The tests run first and the deploy waits on them: a broken app that a phone
+# has already cached is a bad day out.
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one half way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install the browser the suite drives
+        run: uv run playwright install --with-deps chromium
+      - name: Run the whole suite, service worker included
+        run: uv run pytest
+
+  build:
+    name: Build
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      # Stdlib only: no environment to set up.
+      - name: Assemble and stamp the site
+        run: python3 tools/build_site.py --out _site --rev "${GITHUB_SHA::7}"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

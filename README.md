@@ -51,4 +51,6 @@ Base mapping is OS 1:25000 colour raster, printed under licence © Crown copyrig
 
 Base tiles © OpenStreetMap contributors, used under the Open Database Licence.
 
+The app's own **Sources & licence** panel carries the same credits, and the commit and time the copy on the phone was built from. Pushing to `main` runs the test suite, stamps the build, and publishes to GitHub Pages; `python3 tools/build_site.py --out _site` does the same locally.
+
 This site is published `noindex` and is intended for the survey volunteer's own field use, not as a redistribution of Ordnance Survey mapping.
