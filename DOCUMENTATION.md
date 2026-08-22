@@ -86,6 +86,8 @@ Tapping a plot — on the map, or in the plots list — opens its sheet.
 
 The bearing goes the whole way round the compass, 0–359°, so 90° and 270° lay a linear plot opposite ways. **Use heading** stamps in the direction you are facing, for laying a plot along the feature you are standing next to. Zoomed in far enough, the plot is drawn on the map at its true size and orientation.
 
+Under the slider the sheet shows the references to write on the form, and they follow the slider as you turn it: a linear plot's **start and end**, or a square's **south-west corner**, each as a 10-figure (1 m) grid reference, with the direction as a 16-point compass point. While a square sits square to the grid that corner is its south-west one; turned off the grid it is the corner lying furthest south-west. Every export carries the same references.
+
 **Notes** is a free text field — access, landowner, what is growing, why you moved the plot. Everything is saved as you type.
 
 ## Where the plot really is
@@ -119,13 +121,16 @@ Only chosen plots are exported. Where a plot has been moved, the files carry the
 | `habitat` | The NPMS broad habitat, in full |
 | `shape` | `square` or `linear` |
 | `bearing_deg` | 0–359 |
+| `bearing_point` | The same direction as a 16-point compass point — `WSW` |
+| `start_grid_ref`, `end_grid_ref` | A linear plot's two ends; blank for a square |
+| `sw_corner_grid_ref` | A square plot's south-west corner; blank for a linear plot |
 | `position` | `marked` if you moved the plot, `sheet` if it sits on the printed point |
 | `moved_m` | How far the plot is from the sheet's point |
 | `notes` | Your notes, quoted so commas and quotation marks survive |
 
-**GPS waypoints (GPX)** — GPX 1.1, one `<wpt>` per plot named `TL3443 plot n`, described with its grid reference, habitat, shape and bearing, whether it is marked out, and its notes. Loads into a handheld GPS or a phone mapping app.
+**GPS waypoints (GPX)** — GPX 1.1, one `<wpt>` per plot named `TL3443 plot n`, described with its grid reference, habitat, shape and bearing, the references it is laid out from, whether it is marked out, and its notes. Loads into a handheld GPS or a phone mapping app.
 
-**Map data (GeoJSON)** — a `FeatureCollection` in WGS84 carrying two features per plot: the plot's point, and its footprint as a polygon — the 5 m square, or the 25 m line from the point along its bearing. Both carry the same properties as the CSV columns, plus `feature`, which says which of the two it is. Opens in QGIS and the like.
+**Map data (GeoJSON)** — a `FeatureCollection` in WGS84 carrying two features per plot: the plot's point, and its footprint as a polygon — the 5 m square, or the 25 m line from the point along its bearing. Both carry the same properties as the CSV columns — references and compass point included — plus `feature`, which says which of the two it is. Opens in QGIS and the like.
 
 ## Working offline
 

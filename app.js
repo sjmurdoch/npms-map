@@ -180,10 +180,13 @@
   // "none" once the whole lattice is smaller than the markers drawn on it.
   var detail = "full";
 
-  // Corners of a plot's ground footprint, in the order they would be walked.
-  // The square straddles the sheet's point; the linear plot starts there and
-  // runs the full 25 m out along its bearing, the way the tape is laid.
-  function footCorners(p) {
+  // Corners of a plot's ground footprint, in eastings and northings, in the
+  // order they would be walked. The square straddles the sheet's point; the
+  // linear plot starts there and runs the full 25 m out along its bearing, the
+  // way the tape is laid. Everything that has to agree about where a plot lies
+  // - what is drawn, what is exported, what the surveyor writes down - comes
+  // from here.
+  function footCornersBng(p) {
     var r = rec(p.n), pos = plotPos(p);
     var linear = !!(r && r.shape === "linear");
     var a = ((r && r.bearing) || 0) * Math.PI / 180;
@@ -191,12 +194,33 @@
     var across = (linear ? LINEAR_M[1] : SQUARE_M) / 2;
     var back = linear ? 0 : len / 2;                   // how far behind the point it reaches
     var ue = Math.sin(a), un = Math.cos(a);            // unit vector along the plot
-    var out = [];
-    [[len - back, 1], [len - back, -1], [-back, -1], [-back, 1]].forEach(function (s) {
-      out.push(bngToLL(pos.e + s[0] * ue + s[1] * across * un,
-                       pos.n + s[0] * un - s[1] * across * ue));
+    return [[len - back, 1], [len - back, -1], [-back, -1], [-back, 1]].map(function (s) {
+      return { e: pos.e + s[0] * ue + s[1] * across * un,
+               n: pos.n + s[0] * un - s[1] * across * ue };
     });
-    return out;
+  }
+
+  function footCorners(p) {
+    return footCornersBng(p).map(function (c) { return bngToLL(c.e, c.n); });
+  }
+
+  // Where a linear plot's tape ends: 25 m from the point along the bearing.
+  function linearEnd(p) {
+    var r = rec(p.n), pos = plotPos(p);
+    var a = ((r && r.bearing) || 0) * Math.PI / 180;
+    return { e: pos.e + LINEAR_M[0] * Math.sin(a),
+             n: pos.n + LINEAR_M[0] * Math.cos(a) };
+  }
+
+  // The corner a square plot is recorded from. That is its south-west corner
+  // while the plot sits square to the grid; turned off the grid it is the corner
+  // lying furthest south-west, and the more westerly of the two when a plot
+  // turned to 45° puts two of them equally far.
+  function swCorner(p) {
+    return footCornersBng(p).reduce(function (best, c) {
+      var d = (c.e + c.n) - (best.e + best.n);
+      return d < 0 || (d === 0 && c.e < best.e) ? c : best;
+    });
   }
 
   GEO.plots.forEach(function (p) {
@@ -864,9 +888,7 @@
       '<span id="pBrgV" style="width:3.2em;text-align:right;color:var(--muted);font-size:12px">' +
       (r.bearing || 0) + '°</span>' +
       '<button id="pBrgHead" style="flex:0 0 auto;min-height:34px;padding:6px 8px">Use heading</button></div>' +
-      '<p class="sub">' + (r.shape === "linear"
-        ? "The 25 m runs out from the plot\u2019s point along this bearing, so walk it that way."
-        : "The square sits centred on the plot\u2019s point, turned to this bearing.") + "</p>");
+      '<p class="sub" id="pLayout">' + layoutNote(p) + "</p>");
 
     h.push('<p class="sub">Where the plot really is</p>');
     if (r.marked) {
@@ -902,13 +924,16 @@
     $("pLin").addEventListener("click", function () { r.shape = "linear"; save(); refreshPlot(n); renderPlot(); });
     var brg = $("pBrg"), brgV = $("pBrgV");
     brg.addEventListener("input", function () {
-      r.bearing = +brg.value; brgV.textContent = brg.value + "°"; refreshPlot(n);
+      r.bearing = +brg.value; brgV.textContent = brg.value + "°";
+      $("pLayout").innerHTML = layoutNote(p);      // the references move with it
+      refreshPlot(n);
     });
     brg.addEventListener("change", save);
     $("pBrgHead").addEventListener("click", function () {
       if (heading == null) { brgV.textContent = "no compass"; return; }
       r.bearing = Math.round(heading) % 360;
       brg.value = r.bearing; brgV.textContent = r.bearing + "°";
+      $("pLayout").innerHTML = layoutNote(p);
       save(); refreshPlot(n);
     });
     $("pPlace").addEventListener("click", function () { startPlacing(n); });
@@ -935,6 +960,7 @@
                  (r.marked ? " (marked out)" : " (sheet point)"));
       lines.push("  Habitat: " + (r.habitat ? habitatName(r.habitat) : "not set"));
       lines.push("  Plot: " + shapeText(r));
+      lines.push("  " + layoutLine(p));
       if (r.note) lines.push("  Notes: " + r.note);
     });
     if (lines.length === 1) lines.push("", "(none chosen yet)");
@@ -970,31 +996,67 @@
   }
 
   // How the plot is laid out, said the same way wherever it is written down.
+  function bearingText(r) {
+    var b = r.bearing || 0;
+    return b + "° " + compassPoint(b);
+  }
+
   function shapeText(r) {
     return r.shape === "linear"
-      ? "25 × 1 m linear, running " + (r.bearing || 0) + "° out from the point"
-      : "5 × 5 m square, bearing " + (r.bearing || 0) + "°";
+      ? "25 × 1 m linear, running " + bearingText(r) + " out from the point"
+      : "5 × 5 m square, bearing " + bearingText(r);
   }
 
   // Everything worth saying about a plot, in the words the app itself uses.
   function plotFields(p) {
     var r = rec(p.n, true), pos = plotPos(p), ll = bngToLL(pos.e, pos.n);
+    var linear = r.shape === "linear", end = linear ? linearEnd(p) : null;
+    var sw = linear ? null : swCorner(p);
     return {
       plot: p.n,
       grid_ref: gridRef(pos.e, pos.n, 10),
       easting: +pos.e.toFixed(1), northing: +pos.n.toFixed(1),
       latitude: +ll.lat.toFixed(6), longitude: +ll.lng.toFixed(6),
       habitat: r.habitat ? habitatName(r.habitat) : "",
-      shape: r.shape === "linear" ? "linear" : "square",
+      shape: linear ? "linear" : "square",
       bearing_deg: r.bearing || 0,
+      bearing_point: compassPoint(r.bearing || 0),
+      // A linear plot is recorded by its two ends, a square by its corner: what
+      // the surveyor writes on the form, and has to be able to walk back to.
+      start_grid_ref: linear ? gridRef(pos.e, pos.n, 10) : "",
+      end_grid_ref: end ? gridRef(end.e, end.n, 10) : "",
+      sw_corner_grid_ref: sw ? gridRef(sw.e, sw.n, 10) : "",
       position: r.marked ? "marked" : "sheet",
       moved_m: +Math.hypot(pos.e - p.e, pos.n - p.n_).toFixed(1),
       notes: r.note || ""
     };
   }
 
+  // What the NPMS form asks to have written down: a linear plot's two ends, or
+  // the corner a square is laid out from, and which way it faces.
+  // The direction is on the line above wherever this is used, so it is not
+  // repeated here.
+  function layoutLine(p) {
+    var r = rec(p.n, true), f = plotFields(p);
+    return r.shape === "linear"
+      ? "Start " + f.start_grid_ref + " to end " + f.end_grid_ref
+      : "South-west corner " + f.sw_corner_grid_ref;
+  }
+
+  // The same, for the plot's own sheet, where it is read while marking out.
+  function layoutNote(p) {
+    var r = rec(p.n, true), f = plotFields(p);
+    return r.shape === "linear"
+      ? "Start <b>" + f.start_grid_ref + "</b> to end <b>" + f.end_grid_ref + "</b> · " +
+        bearingText(r) + " — the 25 m runs out from the plot\u2019s point, so walk it that way."
+      : "South-west corner <b>" + f.sw_corner_grid_ref + "</b> · " + bearingText(r) +
+        " — the square straddles the plot\u2019s point.";
+  }
+
   var CSV_COLUMNS = ["plot", "grid_ref", "easting", "northing", "latitude", "longitude",
-                     "habitat", "shape", "bearing_deg", "position", "moved_m", "notes"];
+                     "habitat", "shape", "bearing_deg", "bearing_point",
+                     "start_grid_ref", "end_grid_ref", "sw_corner_grid_ref",
+                     "position", "moved_m", "notes"];
 
   function csvCell(v) {
     var t = v == null ? "" : String(v);
@@ -1021,7 +1083,7 @@
     chosenPlots().forEach(function (p) {
       var r = rec(p.n, true), f = plotFields(p);
       var desc = [f.grid_ref, f.habitat || "habitat not set", shapeText(r),
-                  r.marked ? "marked out" : "sheet point"];
+                  layoutLine(p), r.marked ? "marked out" : "sheet point"];
       if (f.notes) desc.push(f.notes);
       out.push('  <wpt lat="' + f.latitude + '" lon="' + f.longitude + '">',
                "    <name>" + esc(GEO.name + " plot " + p.n) + "</name>",

@@ -8,7 +8,9 @@ import csv
 import datetime
 import io
 import json
+import math
 import pathlib
+import re
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -19,8 +21,17 @@ from helpers import (choose, close_sheet, open_plot, set_bearing, start_move,
 
 GPX = "{http://www.topografix.com/GPX/1/1}"
 COLUMNS = ["plot", "grid_ref", "easting", "northing", "latitude", "longitude",
-           "habitat", "shape", "bearing_deg", "position", "moved_m", "notes"]
+           "habitat", "shape", "bearing_deg", "bearing_point",
+           "start_grid_ref", "end_grid_ref", "sw_corner_grid_ref",
+           "position", "moved_m", "notes"]
 NOTE = 'Gate padlocked, ask at "Beauvale Farm"'      # a comma and quotes to survive
+
+
+def bng(ref):
+    """A 10-figure grid reference back to eastings and northings."""
+    figures = re.fullmatch(r"TL (\d{5}) (\d{5})", ref)
+    assert figures, f"not a 10-figure reference: {ref!r}"
+    return 500000 + int(figures.group(1)), 200000 + int(figures.group(2))
 
 
 def open_export(page):
@@ -69,15 +80,39 @@ def test_the_csv_carries_every_plot_and_everything_recorded_about_it(planned):
     assert eight["grid_ref"] == "TL 34500 43333"
     assert eight["habitat"] == "Arable field margins"
     assert eight["shape"] == "square" and eight["position"] == "sheet"
+    # A square is recorded from its corner: 2.5 m south and west of the point.
+    assert eight["sw_corner_grid_ref"] == "TL 34497 43330"
+    assert eight["bearing_deg"] == "0" and eight["bearing_point"] == "N"
+    assert eight["start_grid_ref"] == "" and eight["end_grid_ref"] == ""
     assert float(eight["moved_m"]) == 0
     assert eight["notes"] == NOTE                      # comma and quotes intact
     assert 52 < float(eight["latitude"]) < 53 and -1 < float(eight["longitude"]) < 1
 
     thirteen = dict(zip(COLUMNS, rows[2]))
     assert thirteen["shape"] == "linear" and thirteen["bearing_deg"] == "250"
+    assert thirteen["bearing_point"] == "WSW"
     assert thirteen["position"] == "marked"
     assert float(thirteen["moved_m"]) == pytest.approx(20, abs=2)
     assert float(thirteen["easting"]) == pytest.approx(534520, abs=2)
+    assert thirteen["sw_corner_grid_ref"] == ""
+
+    # A linear plot is recorded from end to end: the tape starts at the plot's
+    # own point and runs 25 m along the bearing.
+    assert thirteen["start_grid_ref"] == thirteen["grid_ref"]
+    (e0, n0), (e1, n1) = bng(thirteen["start_grid_ref"]), bng(thirteen["end_grid_ref"])
+    assert math.hypot(e1 - e0, n1 - n0) == pytest.approx(25, abs=1.5)
+    assert math.degrees(math.atan2(e1 - e0, n1 - n0)) % 360 == pytest.approx(250, abs=4)
+
+
+def test_a_square_turned_off_the_grid_reports_its_most_south_westerly_corner(planned):
+    """Turned 30°, the corner nearest south-west is no longer the same one."""
+    open_plot(planned, 8)
+    set_bearing(planned, 30)
+    open_export(planned)
+    rows = list(csv.reader(io.StringIO(save(planned, "exCsv")[1])))
+    eight = dict(zip(COLUMNS, rows[1]))
+    assert eight["sw_corner_grid_ref"] == "TL 34496 43332"
+    assert eight["bearing_point"] == "NNE"
 
 
 def test_the_csv_is_written_the_way_a_spreadsheet_expects(planned):
@@ -96,7 +131,11 @@ def test_the_gpx_is_one_waypoint_per_plot(planned):
     assert [p.find(GPX + "name").text for p in points] == ["TL3443 plot 8", "TL3443 plot 13"]
     assert 52 < float(points[0].get("lat")) < 53
     assert points[0].find(GPX + "desc").text.startswith("TL 34500 43333 · Arable field margins")
-    assert "25 × 1 m linear, running 250° out from the point" in points[1].find(GPX + "desc").text
+    assert "25 × 1 m linear, running 250° WSW out from the point" in points[1].find(GPX + "desc").text
+    assert re.search(r"Start TL \d{5} \d{5} to end TL \d{5} \d{5}",
+                     points[1].find(GPX + "desc").text)
+    assert "5 × 5 m square, bearing 0° N · South-west corner TL 34497 43330" \
+        in points[0].find(GPX + "desc").text
     assert "marked out" in points[1].find(GPX + "desc").text
 
 

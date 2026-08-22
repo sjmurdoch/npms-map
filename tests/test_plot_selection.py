@@ -88,6 +88,16 @@ def test_use_heading_takes_the_direction_you_are_facing(app):
     assert stored(app)["plots"]["7"]["bearing"] == 200
 
 
+def test_the_sheet_shows_the_references_to_write_on_the_form(app):
+    """A square is recorded from its corner, a linear plot from its two ends."""
+    open_plot(app, 8)
+    expect(app.locator("#pLayout")).to_contain_text("South-west corner TL 34497 43330 · 0° N")
+    app.locator("#pLin").click()
+    set_bearing(app, 90)
+    expect(app.locator("#pLayout")).to_contain_text(
+        "Start TL 34500 43333 to end TL 34525 43333 · 90° E")
+
+
 def test_the_next_plot_stays_tappable_after_choosing_one(app):
     """Closing the sheet lets the panel grow back; it must not bury the map."""
     choose(app, 8)
@@ -146,4 +156,5 @@ def test_the_plan_can_be_copied_out_for_the_npms_form(app):
     assert "NPMS TL3443" in copied
     assert "Plot 8  TL 34500 43333" in copied
     assert "Arable field margins" in copied
-    assert "5 × 5 m square" in copied
+    assert "5 × 5 m square, bearing 0° N" in copied
+    assert "South-west corner TL 34497 43330" in copied
