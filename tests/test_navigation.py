@@ -61,6 +61,16 @@ def test_arrival_appears_once_the_fix_sharpens(app):
     expect(app.locator("#navDist")).to_have_text("At plot 8")
 
 
+def test_turning_the_compass_on_leaves_the_button_alone(app):
+    """"Compass on" wrapped onto two lines and left the row of buttons ragged."""
+    button = app.locator("#btnCompass")
+    one_line = app.locator("#btnLocate").bounding_box()["height"]
+    button.click()
+    expect(button).to_have_text("Compass")
+    expect(button).to_have_attribute("aria-pressed", "true")
+    assert button.bounding_box()["height"] == one_line
+
+
 def test_the_arrow_steers_by_compass_when_there_is_a_heading(app):
     walk_to(app, 8)
     stand_at(app, *AWAY)

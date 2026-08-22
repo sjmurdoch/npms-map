@@ -53,7 +53,7 @@ With a fix and no plot targeted, the panel names the nearest plot with its dista
 | **Hide sheet** / **Show sheet** | One tap to take the sheet off and put it back at the opacity you were using — for checking access, tracks and field boundaries underneath. |
 | **Locate** / **Stop** | Starts and stops GPS. |
 | **Follow** | Keeps the map centred on you; dragging the map turns it off. With a plot open it holds the plot in view instead, so you can see yourself and the outline at once. |
-| **Compass** | Turns on the magnetometer. On iOS this needs the tap to grant permission; the button says if it was denied or the device has no compass. |
+| **Compass** | Turns on the magnetometer, and shows as pressed while it is on. On iOS this needs the tap to grant permission; the button says if it was denied or the device has no compass. |
 | **Fit square** | Fits TL3443 to the screen, padded clear of the panel. |
 | **Save offline** | Downloads the base tiles for the square and its surroundings. |
 | **Sources & licence** | The credits, and the build this copy of the app came from. |

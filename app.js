@@ -610,8 +610,9 @@
   function attachCompass() {
     window.addEventListener("deviceorientationabsolute", onOrientation, true);
     window.addEventListener("deviceorientation", onOrientation, true);
+    // The label stays put: "Compass on" wrapped onto a second line and pushed the
+    // row of buttons out of shape. Pressed is what says it is on.
     btnCompass.setAttribute("aria-pressed", "true");
-    btnCompass.textContent = "Compass on";
   }
   btnCompass.addEventListener("click", function () {
     var D = window.DeviceOrientationEvent;
