@@ -158,6 +158,16 @@ def metres_apart(page, a, b):
     return math.hypot(bx - ax, by - ay) / pixels_per_metre(page)
 
 
+def start_move(page, n, zoom_steps=4):
+    """Open plot n and start moving it on the map, leaving it ready to tap."""
+    zoom(page, zoom_steps)
+    open_plot(page, n)
+    page.locator("#pPlace").click()
+    page.wait_for_function(
+        "() => !document.getElementById('sheet').classList.contains('open')")
+    return plot_point(page, n), pixels_per_metre(page)
+
+
 def sheet_point(page, n):
     """A plot's printed point on the NPMS sheet, in eastings and northings."""
     return page.evaluate(

@@ -779,7 +779,9 @@
 
   function renderSheet() {
     if (!sheetView) return;
-    if (sheetView.kind === "plots") renderPlots(); else renderPlot();
+    if (sheetView.kind === "plots") renderPlots();
+    else if (sheetView.kind === "export") renderExport();
+    else renderPlot();
   }
   function showPlots() { openSheet({ kind: "plots" }); }
   function showPlot(n, back) { openSheet({ kind: "plot", n: n, back: !!back }); }
@@ -802,8 +804,12 @@
           (r && r.marked ? " · marked out" : "") + "</i></span>" +
         '<span class="far">' + (d == null ? "" : Math.round(d) + " m") + "</span></button>");
     });
-    html.push('<div class="stack"><button id="btnExport">Copy my plot list</button></div>');
+    html.push('<div class="stack"><button id="btnExport">Copy my plot list</button>' +
+              '<button id="btnFiles">Export as a file — CSV, GPX or GeoJSON</button></div>');
     sheetBody.innerHTML = html.join("");
+    $("btnFiles").addEventListener("click", function () {
+      openSheet({ kind: "export", back: true });
+    });
     sheetBody.querySelectorAll("[data-plot]").forEach(function (b) {
       b.addEventListener("click", function () { showPlot(+b.dataset.plot, true); });
     });
@@ -927,9 +933,7 @@
       lines.push("Plot " + p.n + "  " + gridRef(pos.e, pos.n, 10) +
                  (r.marked ? " (marked out)" : " (sheet point)"));
       lines.push("  Habitat: " + (r.habitat ? habitatName(r.habitat) : "not set"));
-      lines.push("  Plot: " + (r.shape === "linear"
-                 ? "25 × 1 m linear, running " + (r.bearing || 0) + "° out from the point"
-                 : "5 × 5 m square, bearing " + (r.bearing || 0) + "°"));
+      lines.push("  Plot: " + shapeText(r));
       if (r.note) lines.push("  Notes: " + r.note);
     });
     if (lines.length === 1) lines.push("", "(none chosen yet)");
@@ -938,13 +942,183 @@
       navigator.share({ title: "NPMS " + GEO.name + " plots", text: text }).catch(function () {});
     } else if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(function () {
-        var b = $("btnExport");
+        var b = $("exText") || $("btnExport");
+        if (!b) return;
+        var was = b.textContent;
         b.textContent = "Copied to clipboard";
-        setTimeout(function () { if (b.isConnected) b.textContent = "Copy my plot list"; }, 4000);
+        setTimeout(function () { if (b.isConnected) b.textContent = was; }, 4000);
       }).catch(function () { window.prompt("Copy your plot list", text); });
     } else {
       window.prompt("Copy your plot list", text);
     }
+  }
+
+  // ---- the same plan as a file, for whatever is going to read it next
+  // The text above is for the NPMS form and for a text to yourself. A file is
+  // for everything else: the spreadsheet the records go in, the GPS or phone
+  // app that will navigate to the plots, and the mapping tool that wants the
+  // outlines and not just the points.
+  function chosenPlots() {
+    return GEO.plots.filter(function (p) { var r = rec(p.n); return !!(r && r.chosen); });
+  }
+
+  function fileName(ext) {
+    var d = new Date(), pad = function (v) { return String(v).padStart(2, "0"); };
+    return "NPMS-" + GEO.name + "-plots-" +
+           d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "." + ext;
+  }
+
+  // How the plot is laid out, said the same way wherever it is written down.
+  function shapeText(r) {
+    return r.shape === "linear"
+      ? "25 × 1 m linear, running " + (r.bearing || 0) + "° out from the point"
+      : "5 × 5 m square, bearing " + (r.bearing || 0) + "°";
+  }
+
+  // Everything worth saying about a plot, in the words the app itself uses.
+  function plotFields(p) {
+    var r = rec(p.n, true), pos = plotPos(p), ll = bngToLL(pos.e, pos.n);
+    return {
+      plot: p.n,
+      grid_ref: gridRef(pos.e, pos.n, 10),
+      easting: +pos.e.toFixed(1), northing: +pos.n.toFixed(1),
+      latitude: +ll.lat.toFixed(6), longitude: +ll.lng.toFixed(6),
+      habitat: r.habitat ? habitatName(r.habitat) : "",
+      shape: r.shape === "linear" ? "linear" : "square",
+      bearing_deg: r.bearing || 0,
+      position: r.marked ? "marked" : "sheet",
+      moved_m: +Math.hypot(pos.e - p.e, pos.n - p.n_).toFixed(1),
+      notes: r.note || ""
+    };
+  }
+
+  var CSV_COLUMNS = ["plot", "grid_ref", "easting", "northing", "latitude", "longitude",
+                     "habitat", "shape", "bearing_deg", "position", "moved_m", "notes"];
+
+  function csvCell(v) {
+    var t = v == null ? "" : String(v);
+    return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+
+  function plotsCsv() {
+    var rows = [CSV_COLUMNS.join(",")];
+    chosenPlots().forEach(function (p) {
+      var f = plotFields(p);
+      rows.push(CSV_COLUMNS.map(function (k) { return csvCell(f[k]); }).join(","));
+    });
+    // CRLF and a byte order mark: what a spreadsheet expects of a CSV, and what
+    // stops Excel making a mess of an accent or a curly quote in a note.
+    return "\ufeff" + rows.join("\r\n") + "\r\n";
+  }
+
+  function plotsGpx() {
+    var out = ['<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1" creator="NPMS ' + esc(GEO.name) + ' field map" ' +
+        'xmlns="http://www.topografix.com/GPX/1/1">',
+      "  <metadata><name>NPMS " + esc(GEO.name) + " plots</name><time>" +
+        new Date().toISOString() + "</time></metadata>"];
+    chosenPlots().forEach(function (p) {
+      var r = rec(p.n, true), f = plotFields(p);
+      var desc = [f.grid_ref, f.habitat || "habitat not set", shapeText(r),
+                  r.marked ? "marked out" : "sheet point"];
+      if (f.notes) desc.push(f.notes);
+      out.push('  <wpt lat="' + f.latitude + '" lon="' + f.longitude + '">',
+               "    <name>" + esc(GEO.name + " plot " + p.n) + "</name>",
+               "    <desc>" + esc(desc.join(" · ")) + "</desc>",
+               "    <sym>Flag</sym>",
+               "  </wpt>");
+    });
+    out.push("</gpx>");
+    return out.join("\n") + "\n";
+  }
+
+  function plotsGeoJson() {
+    var features = [];
+    chosenPlots().forEach(function (p) {
+      var f = plotFields(p);
+      var point = { type: "Feature", properties: {},
+                    geometry: { type: "Point", coordinates: [f.longitude, f.latitude] } };
+      // The footprint is the plot as it will be walked out: a 5 m square, or a
+      // 25 m line from the point along its bearing.
+      var ring = footCorners(p).map(function (c) { return [+c.lng.toFixed(6), +c.lat.toFixed(6)]; });
+      ring.push(ring[0]);
+      var foot = { type: "Feature", properties: {},
+                   geometry: { type: "Polygon", coordinates: [ring] } };
+      Object.keys(f).forEach(function (k) {
+        point.properties[k] = f[k]; foot.properties[k] = f[k];
+      });
+      point.properties.feature = "plot point";
+      foot.properties.feature = "plot footprint";
+      features.push(point, foot);
+    });
+    return JSON.stringify({ type: "FeatureCollection",
+                            name: "NPMS " + GEO.name + " plots",
+                            features: features }, null, 2) + "\n";
+  }
+
+  // Hand the file over the way the device offers. On a phone that is the share
+  // sheet, which ends somewhere the surveyor can find again; a download is the
+  // desktop answer and the fallback.
+  function saveFile(name, mime, text, done) {
+    var file = null;
+    try { file = new File([text], name, { type: mime }); } catch (e) {}
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: name })
+        .then(function () { done("Shared"); })
+        .catch(function () { done(null); });   // dismissed: claim nothing
+      return;
+    }
+    var url = URL.createObjectURL(new Blob([text], { type: mime }));
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+    done("Saved");
+  }
+
+  var FILES = {
+    exCsv: ["csv", "text/csv", plotsCsv],
+    exGpx: ["gpx", "application/gpx+xml", plotsGpx],
+    exGeo: ["geojson", "application/geo+json", plotsGeoJson]
+  };
+
+  function renderExport() {
+    var plots = chosenPlots(), any = plots.length > 0, off = any ? "" : " disabled";
+    sheetTitle.innerHTML = "Export plots<small>" +
+      (any ? plots.length + (plots.length === 1 ? " plot chosen" : " plots chosen")
+           : "nothing chosen yet") + "</small>";
+
+    var h = [];
+    h.push(any
+      ? '<p class="sub">Where you have moved a plot, the file carries the position you ' +
+        "marked out; everywhere else it carries the sheet's printed point.</p>"
+      : '<p class="empty">Choose the plots you are going to survey and they will be in ' +
+        "every file here.</p>");
+    h.push('<div class="stack">' +
+      '<button id="exText"' + off + ">Copy as text — for the NPMS form</button>" +
+      '<button id="exCsv"' + off + ">Spreadsheet (CSV)</button>" +
+      '<button id="exGpx"' + off + ">GPS waypoints (GPX)</button>" +
+      '<button id="exGeo"' + off + ">Map data (GeoJSON)</button></div>");
+    h.push('<p class="sub" id="exNote">CSV opens in a spreadsheet, one row per plot. ' +
+      "GPX loads into a handheld GPS or a phone mapping app as one waypoint per plot. " +
+      "GeoJSON carries the plot outlines as well as their points, for QGIS and the like.</p>");
+    sheetBody.innerHTML = h.join("");
+    if (!any) return;
+
+    $("exText").addEventListener("click", exportPlots);
+    Object.keys(FILES).forEach(function (id) {
+      $(id).addEventListener("click", function () {
+        var f = FILES[id], name = fileName(f[0]);
+        saveFile(name, f[1], f[2](), function (verb) {
+          var note = $("exNote");
+          if (!verb || !note) return;
+          note.innerHTML = verb + " <b>" + esc(name) + "</b> · " + plots.length +
+            (plots.length === 1 ? " plot" : " plots") + " in it.";
+        });
+      });
+    });
   }
 
   // ---------------------------------------------------------- panel summary

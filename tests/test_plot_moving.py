@@ -10,19 +10,10 @@ import re
 import pytest
 from playwright.sync_api import expect
 
-from helpers import (close_sheet, metres_apart, open_plot, pixels_per_metre,
-                     plot_point, sheet_point, stored, zoom)
+from helpers import (close_sheet, metres_apart, sheet_point, start_move,
+                     stored)
 
 STEP = 1000.0 / 6.0              # plots 12 and 13 are one lattice step apart
-
-
-def start_move(page, n, zoom_steps=4):
-    """Open plot n and start moving it, leaving the map ready to tap."""
-    zoom(page, zoom_steps)
-    open_plot(page, n)
-    page.locator("#pPlace").click()
-    expect(page.locator("#sheet")).not_to_have_class(re.compile("open"))
-    return plot_point(page, n), pixels_per_metre(page)
 
 
 def test_a_plot_can_be_moved_by_tapping_the_map(app):
