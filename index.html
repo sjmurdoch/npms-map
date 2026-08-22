@@ -110,6 +110,7 @@
     padding: 6px 0 0; min-height: 0; width: 100%;
   }
   #near span { color: var(--muted); }
+  #compassNote { font-size: 11px; color: var(--warn); margin-top: 6px; line-height: 1.35; }
   #legend { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
   #legend i { flex: 0 0 auto; width: 13px; height: 10px; border: 1px solid #6b7280; background: #f0ffd2; }
   #status { font-size: 11px; color: var(--muted); margin-top: 8px; }
@@ -246,8 +247,9 @@
     <div class="row">
       <button id="btnLocate" aria-pressed="false">Locate</button>
       <button id="btnFollow" aria-pressed="false" disabled>Follow</button>
-      <button id="btnCompass">Compass</button>
+      <button id="btnCompass" aria-pressed="false">Compass</button>
     </div>
+    <div id="compassNote" hidden></div>
     <div class="row">
       <button id="btnSheet">Hide sheet</button>
       <button id="btnFit">Fit square</button>

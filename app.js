@@ -631,21 +631,37 @@
     if (h == null || isNaN(h)) return;
     heading = h; headingSrc = "compass"; applyHeading();
   }
+  // The button keeps its name whatever happens. It has a third of the width of a
+  // phone, which is not enough for "Compass on" or "No compass": either wraps
+  // onto a second line and leaves the row of three sitting ragged. Pressed says
+  // it is on, and anything that needs saying goes on its own line underneath,
+  // where there is room to say it properly - including what the surveyor gets
+  // instead, which no one-word label could have told them.
+  var compassNote = $("compassNote");
+  function sayNoCompass(why) {
+    compassNote.textContent = why + " Heading comes from GPS course instead, " +
+      "which only works while you are moving.";
+    compassNote.hidden = false;
+  }
+
   function attachCompass() {
     window.addEventListener("deviceorientationabsolute", onOrientation, true);
     window.addEventListener("deviceorientation", onOrientation, true);
-    // The label stays put: "Compass on" wrapped onto a second line and pushed the
-    // row of buttons out of shape. Pressed is what says it is on.
     btnCompass.setAttribute("aria-pressed", "true");
+    compassNote.hidden = true;              // granted on a second ask
   }
   btnCompass.addEventListener("click", function () {
     var D = window.DeviceOrientationEvent;
     if (D && typeof D.requestPermission === "function") {      // iOS 13+
       D.requestPermission().then(function (s) {
-        if (s === "granted") attachCompass(); else btnCompass.textContent = "Denied";
-      }).catch(function () { btnCompass.textContent = "Unavailable"; });
+        if (s === "granted") attachCompass();
+        else sayNoCompass("Permission for the compass was refused.");
+      }).catch(function () { sayNoCompass("The compass is unavailable here."); });
     } else if (D) { attachCompass(); }
-    else { btnCompass.textContent = "No compass"; btnCompass.disabled = true; }
+    else {
+      btnCompass.disabled = true;
+      sayNoCompass("This device has no compass.");
+    }
   });
 
   // -------------------------------------------------------------- wake lock

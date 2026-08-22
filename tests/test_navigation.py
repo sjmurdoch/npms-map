@@ -74,36 +74,20 @@ def test_turning_the_compass_on_leaves_the_button_alone(app):
     assert button.bounding_box()["height"] == one_line
 
 
-def button_height(page, label, pressed):
-    """How tall the compass button stands wearing a given label.
-
-    The pressed state is bold, and bold is wider, so a label has to be measured
-    in the state it is actually shown in.
-    """
-    return page.evaluate("""([text, pressed]) => {
-      const b = document.getElementById('btnCompass');
-      const wasText = b.textContent, wasPressed = b.getAttribute('aria-pressed');
-      b.textContent = text;
-      b.setAttribute('aria-pressed', pressed ? 'true' : 'false');
-      const height = b.getBoundingClientRect().height;
-      b.textContent = wasText;
-      if (wasPressed === null) b.removeAttribute('aria-pressed');
-      else b.setAttribute('aria-pressed', wasPressed);
-      return height;
-    }""", [label, pressed])
-
-
-def test_no_state_of_the_compass_button_wraps(app):
-    """A button on two lines leaves the row of three sitting ragged."""
+def test_the_compass_button_never_relabels_itself(app):
+    """It has a third of a phone's width: any second word wraps and the row of
+    three goes ragged. Whatever happens is said on its own line underneath."""
+    assert "btnCompass.textContent" not in (APP / "app.js").read_text()
     one_line = app.locator("#btnLocate").bounding_box()["height"]
-    labels = re.findall(r'btnCompass\.textContent = "([^"]+)"', (APP / "app.js").read_text())
-    assert labels, "the compass button's labels have moved"
-    for label in labels:                       # every way it can report a failure
-        assert button_height(app, label, False) == one_line, f"{label!r} wraps"
-    assert button_height(app, "Compass", True) == one_line, "the pressed label wraps"
+    button = app.locator("#btnCompass")
+    button.click()                                    # the compass this browser has
+    expect(button).to_have_text("Compass")
+    expect(button).to_have_attribute("aria-pressed", "true")
+    assert button.bounding_box()["height"] == one_line, "the pressed label wraps"
+    expect(app.locator("#compassNote")).to_be_hidden()
 
 
-def test_a_device_with_no_compass_is_told_so_on_one_line(app):
+def test_a_device_with_no_compass_is_told_so_and_told_what_it_gets_instead(app):
     """The branch a phone without a magnetometer takes, run for real."""
     one_line = app.locator("#btnLocate").bounding_box()["height"]
     app.add_init_script(
@@ -114,9 +98,11 @@ def test_a_device_with_no_compass_is_told_so_on_one_line(app):
         "() => document.querySelectorAll('.leaflet-overlay-pane path').length > 0")
     button = app.locator("#btnCompass")
     button.click()
-    expect(button).to_have_text("No compass")
+    expect(button).to_have_text("Compass")
     expect(button).to_be_disabled()
     assert button.bounding_box()["height"] == one_line
+    expect(app.locator("#compassNote")).to_contain_text("This device has no compass")
+    expect(app.locator("#compassNote")).to_contain_text("GPS course")
 
 
 def test_the_arrow_steers_by_compass_when_there_is_a_heading(app):
