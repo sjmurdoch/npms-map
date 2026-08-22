@@ -92,7 +92,9 @@ Under the slider the sheet shows the references to write on the form, and they f
 
 ## Where the plot really is
 
-The sheet's printed point can land in a ditch, in a crop, or on the far side of a fence. Two ways to move the plot, and one to undo it:
+The section names the plot's position as a 10-figure grid reference either way: the sheet's printed point until you move it, and the position you marked out afterwards, with how far that is from the printed point.
+
+The printed point itself can land in a ditch, in a crop, or on the far side of a fence. Two ways to move the plot, and one to undo it:
 
 - **Move plot to where I am standing** records the position you actually put it, and says how accurate the fix was when you did. It needs a GPS fix and says so when there is none.
 - **Move plot on the map** hands the map over instead. The sheet gets out of the way, the plot is haloed, and a tap puts it — marker, number and outline together — where your finger went. The bar reports the new grid reference and how far that is from the sheet's point, calls out a tap that lands outside the monad, and writes nothing until you tap **Put plot n here**. Tapping again adjusts; panning the map to look around is not a tap; **Cancel** leaves the plot exactly where it was. No GPS is involved, so a plot can be moved while planning at home.

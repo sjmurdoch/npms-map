@@ -98,6 +98,13 @@ def test_the_sheet_shows_the_references_to_write_on_the_form(app):
         "Start TL 34500 43333 to end TL 34525 43333 · 90° E")
 
 
+def test_the_sheet_gives_a_reference_for_an_unmoved_plot_too(app):
+    """A plot still on its printed point has a position to write down."""
+    open_plot(app, 8)
+    expect(app.locator("#pWhere")).to_contain_text(
+        "The point printed on the NPMS sheet, TL 34500 43333")
+
+
 def test_the_next_plot_stays_tappable_after_choosing_one(app):
     """Closing the sheet lets the panel grow back; it must not bury the map."""
     choose(app, 8)

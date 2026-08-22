@@ -890,14 +890,18 @@
       '<button id="pBrgHead" style="flex:0 0 auto;min-height:34px;padding:6px 8px">Use heading</button></div>' +
       '<p class="sub" id="pLayout">' + layoutNote(p) + "</p>");
 
+    // The reference belongs here whether the plot has been moved or not: an
+    // unmoved plot still has a position to write down and walk back to.
     h.push('<p class="sub">Where the plot really is</p>');
-    if (r.marked) {
-      h.push('<p class="sub" style="color:var(--ok)">Marked at ' + gridRef(r.marked.e, r.marked.n, 10) +
-        " · " + moved.toFixed(0) + " m from the sheet's point</p>");
-    } else {
-      h.push('<p class="sub">Using the point printed on the NPMS sheet. If that spot is ' +
-        'unsuitable, move the plot — by standing where you put it, or by tapping ' +
-        'the map, which needs no GPS at all.</p>');
+    h.push('<p class="sub" id="pWhere"' + (r.marked ? ' style="color:var(--ok)"' : "") + ">" +
+      (r.marked
+        ? "Marked at <b>" + gridRef(r.marked.e, r.marked.n, 10) + "</b> · " +
+          moved.toFixed(0) + " m from the sheet's point"
+        : "The point printed on the NPMS sheet, <b>" + gridRef(p.e, p.n_, 10) + "</b>") +
+      "</p>");
+    if (!r.marked) {
+      h.push('<p class="sub">If that spot is unsuitable, move the plot — by standing ' +
+        'where you put it, or by tapping the map, which needs no GPS at all.</p>');
     }
     h.push('<div class="stack"><button id="pMark"' + (here ? "" : " disabled") + '>' +
       (here ? "Move plot to where I am standing (±" + Math.round(here.acc) + " m)"
